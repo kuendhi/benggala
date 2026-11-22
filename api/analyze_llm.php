@@ -46,6 +46,21 @@ if ($promptText === '') {
     $promptText = "Berikan ringkasan analisis visual deteksi objek kamera saat ini dalam Bahasa Indonesia.";
 }
 
+// 3b. Validasi dan sanitasi parameter gambar opsional (untuk Vision multimodal)
+$rawImage = trim((string)($input['image'] ?? ''));
+$imageBase64 = null;
+
+if ($rawImage !== '') {
+    // Bersihkan prefix data:image/...;base64, jika ada
+    if (preg_match('/^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/is', $rawImage, $matches)) {
+        $rawImage = $matches[2];
+    }
+    // Cek batas panjang string base64: jika melebihi 2.000.000 karakter (~1.5 MB), abaikan gambar
+    if (strlen($rawImage) <= 2000000) {
+        $imageBase64 = $rawImage;
+    }
+}
+
 // 4. Tentukan Provider Utama (Primary) & Cadangan (Secondary)
 $requestedProvider = strtolower(trim((string)($input['provider'] ?? ($env['LLM_DEFAULT_PROVIDER'] ?? 'deepseek'))));
 $primary = ($requestedProvider === 'gemini') ? 'gemini' : 'deepseek';
@@ -137,9 +152,9 @@ function callDeepSeek(string $promptText, array $env): array {
 }
 
 // =============================================================================
-// FUNGSI PROVIDER 2: Google Gemini API
+// FUNGSI PROVIDER 2: Google Gemini API (Multimodal Vision Supported)
 // =============================================================================
-function callGemini(string $promptText, array $env): array {
+function callGemini(string $promptText, array $env, ?string $imageBase64 = null): array {
     $apiUrl = $env['GEMINI_API_URL'] ?? ($env['LLM_API_URL'] ?? 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent');
     $apiKey = trim((string)($env['GEMINI_API_KEY'] ?? ($env['LLM_API_KEY'] ?? '')));
 
@@ -152,12 +167,29 @@ function callGemini(string $promptText, array $env): array {
         ];
     }
 
+    // Susun array parts (teks + opsional inline image data untuk Vision)
+    if ($imageBase64 !== null && $imageBase64 !== '') {
+        $parts = [
+            [
+                'text' => $promptText . "\nAnalisa juga secara visual dari foto terlampir: sebutkan merek/tulisan jika terbaca, kondisi fisik, dan perkiraan ukurannya secara singkat dalam bahasa Indonesia."
+            ],
+            [
+                'inline_data' => [
+                    'mime_type' => 'image/jpeg',
+                    'data' => $imageBase64
+                ]
+            ]
+        ];
+    } else {
+        $parts = [
+            ['text' => $promptText]
+        ];
+    }
+
     $payload = [
         'contents' => [
             [
-                'parts' => [
-                    ['text' => $promptText]
-                ]
+                'parts' => $parts
             ]
         ]
     ];
@@ -233,7 +265,7 @@ function logFallbackFailure(string $primary, string $secondary, string $reason):
 }
 
 // 1. Eksekusi Provider Utama ($primary)
-$primaryResult = ($primary === 'deepseek') ? callDeepSeek($promptText, $env) : callGemini($promptText, $env);
+$primaryResult = ($primary === 'deepseek') ? callDeepSeek($promptText, $env) : callGemini($promptText, $env, $imageBase64);
 
 if ($primaryResult['ok'] === true) {
     echo json_encode([
@@ -248,7 +280,7 @@ if ($primaryResult['ok'] === true) {
 // 2. Jika Primary Gagal, Catat Log & Eksekusi Provider Cadangan ($secondary)
 logFallbackFailure($primary, $secondary, $primaryResult['error']);
 
-$secondaryResult = ($secondary === 'deepseek') ? callDeepSeek($promptText, $env) : callGemini($promptText, $env);
+$secondaryResult = ($secondary === 'deepseek') ? callDeepSeek($promptText, $env) : callGemini($promptText, $env, $imageBase64);
 
 if ($secondaryResult['ok'] === true) {
     echo json_encode([

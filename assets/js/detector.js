@@ -423,6 +423,35 @@ document.addEventListener('DOMContentLoaded', () => {
     return offCanvas.toDataURL('image/jpeg', 0.92);
   }
 
+  /**
+   * Helper ringan untuk mengambil frame terkompresi dari video (lebar maks 640px)
+   * untuk Gemini Multimodal Vision analysis
+   */
+  function captureCompressedFrame() {
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      return null;
+    }
+
+    const maxW = 640;
+    let targetW = video.videoWidth;
+    let targetH = video.videoHeight;
+
+    if (targetW > maxW) {
+      targetH = Math.round((targetH * maxW) / targetW);
+      targetW = maxW;
+    }
+
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = targetW;
+    tempCanvas.height = targetH;
+    const tempCtx = tempCanvas.getContext('2d');
+
+    // Ambil frame murni dari video
+    tempCtx.drawImage(video, 0, 0, targetW, targetH);
+
+    return tempCanvas.toDataURL('image/jpeg', 0.7);
+  }
+
   // =========================================================================
   // 7. Pengiriman Snapshot ke Backend API (api/save_snapshot.php)
   // =========================================================================
@@ -522,6 +551,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     showToast(`Mengirim ke AI (${provider})...`, 'info');
 
+    // Tangkap foto terkompresi dari video (maks 640px JPEG 0.7) untuk Gemini Vision
+    const compressedImage = isStreaming ? captureCompressedFrame() : null;
+
+    const requestPayload = {
+      provider: provider,
+      objects: detectedObjects
+    };
+
+    if (compressedImage) {
+      requestPayload.image = compressedImage;
+    }
+
     try {
       const response = await fetch('api/analyze_llm.php', {
         method: 'POST',
@@ -530,10 +571,7 @@ document.addEventListener('DOMContentLoaded', () => {
           'X-Requested-With': 'XMLHttpRequest',
           'X-CSRF-Token': csrfToken
         },
-        body: JSON.stringify({
-          provider: provider,
-          objects: detectedObjects
-        })
+        body: JSON.stringify(requestPayload)
       });
 
       const result = await response.json();
