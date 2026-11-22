@@ -211,6 +211,33 @@ if (empty($_SESSION['csrf_token'])) {
         </div>
       </aside>
     </main>
+
+    <!-- Galeri Riwayat Deteksi -->
+    <section class="card history-section">
+      <div class="history-header">
+        <div class="history-title-wrapper">
+          <h2 class="card-title">
+            <span class="title-icon">🖼️</span> Galeri Riwayat Deteksi
+          </h2>
+          <span id="historyCountBadge" class="badge-count">0 Riwayat</span>
+        </div>
+        <div class="history-actions">
+          <button type="button" id="btnRefreshHistory" class="btn btn-secondary" title="Muat ulang galeri riwayat">
+            🔄 Muat Ulang
+          </button>
+          <button type="button" id="btnExportCsv" class="btn btn-primary" title="Export riwayat ke CSV/Excel">
+            📥 Export Excel (CSV)
+          </button>
+        </div>
+      </div>
+
+      <div id="historyGrid" class="history-grid">
+        <div class="empty-state">
+          <span>📂</span>
+          <p>Memuat riwayat deteksi...</p>
+        </div>
+      </div>
+    </section>
   </div>
 
   <!-- Modal ⚙️ Pengaturan -->

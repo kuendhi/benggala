@@ -39,6 +39,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnResetCalibrate = document.getElementById('btnResetCalibrate');
   const calibrationStatus = document.getElementById('calibrationStatus');
 
+  const historyGrid = document.getElementById('historyGrid');
+  const btnRefreshHistory = document.getElementById('btnRefreshHistory');
+  const btnExportCsv = document.getElementById('btnExportCsv');
+  const historyCountBadge = document.getElementById('historyCountBadge');
+
   // --- State Variables ---
   let model = null;
   let stream = null;
@@ -581,6 +586,7 @@ document.addEventListener('DOMContentLoaded', () => {
           msg += ' ✈️ Foto terkirim ke Telegram!';
         }
         showToast(msg, 'success');
+        loadHistory();
       } else {
         showToast(result.message || 'Gagal menyimpan snapshot.', 'error');
       }
@@ -949,8 +955,246 @@ document.addEventListener('DOMContentLoaded', () => {
     btnSaveSettings.addEventListener('click', saveSettings);
   }
 
+  // =========================================================================
+  // 12. Galeri Riwayat Deteksi & Export CSV (Task 09A)
+  // =========================================================================
+  async function loadHistory() {
+    if (!historyGrid) return;
+
+    try {
+      const csrfToken = getCsrfToken();
+      const response = await fetch('api/history.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-Token': csrfToken
+        },
+        body: JSON.stringify({ action: 'list' })
+      });
+
+      const result = await response.json();
+      if (!response.ok || result.status !== 'success') {
+        console.error('Gagal memuat riwayat:', result.message);
+        return;
+      }
+
+      const list = result.data || [];
+      if (historyCountBadge) {
+        historyCountBadge.textContent = `${list.length} Riwayat`;
+      }
+
+      historyGrid.innerHTML = '';
+
+      if (list.length === 0) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-state';
+        emptyDiv.style.gridColumn = '1 / -1';
+        emptyDiv.style.padding = '2rem';
+        
+        const iconSpan = document.createElement('span');
+        iconSpan.textContent = '📂';
+        
+        const pTag = document.createElement('p');
+        pTag.textContent = 'Belum ada riwayat snapshot tersimpan.';
+        
+        emptyDiv.appendChild(iconSpan);
+        emptyDiv.appendChild(pTag);
+        historyGrid.appendChild(emptyDiv);
+        return;
+      }
+
+      list.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'history-card';
+
+        // 1. Thumbnail Wrapper
+        const thumbWrapper = document.createElement('div');
+        thumbWrapper.className = 'history-thumb-wrapper';
+
+        const img = document.createElement('img');
+        img.className = 'history-thumb';
+        img.src = item.file_path;
+        img.alt = item.filename;
+        img.loading = 'lazy';
+        img.onerror = () => {
+          img.style.display = 'none';
+          const placeholder = document.createElement('div');
+          placeholder.className = 'history-thumb-placeholder';
+          placeholder.textContent = '🖼️ Gambar tidak ditemukan';
+          thumbWrapper.appendChild(placeholder);
+        };
+        thumbWrapper.appendChild(img);
+
+        // Time badge
+        const timeBadge = document.createElement('span');
+        timeBadge.className = 'history-time-badge';
+        timeBadge.textContent = `🕒 ${item.created_at}`;
+        thumbWrapper.appendChild(timeBadge);
+
+        // CCTV badge jika is_cctv
+        if (item.is_cctv) {
+          const cctvBadge = document.createElement('span');
+          cctvBadge.className = 'history-cctv-badge';
+          cctvBadge.textContent = '🚨 CCTV';
+          thumbWrapper.appendChild(cctvBadge);
+        }
+
+        card.appendChild(thumbWrapper);
+
+        // 2. Card Body
+        const cardBody = document.createElement('div');
+        cardBody.className = 'history-card-body';
+
+        // Filename
+        const fnameDiv = document.createElement('div');
+        fnameDiv.className = 'history-filename';
+        fnameDiv.title = item.filename;
+        fnameDiv.textContent = item.filename;
+        cardBody.appendChild(fnameDiv);
+
+        // Objects summary (Anti-XSS via textContent)
+        const objSummaryDiv = document.createElement('div');
+        objSummaryDiv.className = 'history-objects-summary';
+
+        if (Array.isArray(item.detected_objects) && item.detected_objects.length > 0) {
+          item.detected_objects.forEach(obj => {
+            const tag = document.createElement('span');
+            tag.className = 'history-obj-tag';
+            let label = '';
+            if (typeof obj === 'string') {
+              label = obj;
+            } else if (obj && typeof obj === 'object') {
+              label = obj.name_id || obj.name || obj.class || 'Objek';
+              if (obj.ukuran) {
+                label += ` (${obj.ukuran})`;
+              }
+            }
+            tag.textContent = label;
+            objSummaryDiv.appendChild(tag);
+          });
+        } else if (typeof item.detected_objects === 'string' && item.detected_objects.trim() !== '') {
+          const tag = document.createElement('span');
+          tag.className = 'history-obj-tag';
+          tag.textContent = item.detected_objects;
+          objSummaryDiv.appendChild(tag);
+        } else {
+          const noObj = document.createElement('span');
+          noObj.className = 'history-no-obj';
+          noObj.textContent = 'Tidak ada objek';
+          objSummaryDiv.appendChild(noObj);
+        }
+        cardBody.appendChild(objSummaryDiv);
+
+        // AI Provider & Analysis jika ada
+        if (item.ai_provider && item.analysis_result) {
+          const aiBox = document.createElement('div');
+          aiBox.className = 'history-ai-box';
+          aiBox.title = `${item.ai_provider.toUpperCase()}: ${item.analysis_result}`;
+          aiBox.textContent = `🤖 [${item.ai_provider.toUpperCase()}]: ${item.analysis_result}`;
+          cardBody.appendChild(aiBox);
+        }
+
+        card.appendChild(cardBody);
+
+        // 3. Card Footer
+        const cardFooter = document.createElement('div');
+        cardFooter.className = 'history-card-footer';
+
+        // View image link
+        const viewLink = document.createElement('a');
+        viewLink.className = 'btn-view-image';
+        viewLink.href = item.file_path;
+        viewLink.target = '_blank';
+        viewLink.rel = 'noopener noreferrer';
+        viewLink.textContent = '🔍 Lihat Foto';
+        cardFooter.appendChild(viewLink);
+
+        // Delete button
+        const btnDelete = document.createElement('button');
+        btnDelete.type = 'button';
+        btnDelete.className = 'btn-delete-history';
+        btnDelete.textContent = '🗑️ Hapus';
+        btnDelete.title = 'Hapus riwayat dan foto ini';
+        btnDelete.addEventListener('click', async () => {
+          if (!confirm(`Hapus foto ${item.filename} dan riwayatnya secara permanen?`)) {
+            return;
+          }
+          btnDelete.disabled = true;
+          btnDelete.textContent = '⏳';
+          await deleteHistoryItem(item.id);
+        });
+        cardFooter.appendChild(btnDelete);
+
+        card.appendChild(cardFooter);
+
+        historyGrid.appendChild(card);
+      });
+
+    } catch (err) {
+      console.error('Error saat mengambil riwayat deteksi:', err);
+      showToast('Gagal memuat galeri riwayat.', 'error');
+    }
+  }
+
+  async function deleteHistoryItem(id) {
+    try {
+      const csrfToken = getCsrfToken();
+      const response = await fetch('api/history.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-Token': csrfToken
+        },
+        body: JSON.stringify({
+          action: 'delete',
+          id: id
+        })
+      });
+
+      const result = await response.json();
+      if (response.ok && result.status === 'success') {
+        showToast('Foto dan riwayat berhasil dihapus.', 'success');
+        loadHistory();
+      } else {
+        showToast(result.message || 'Gagal menghapus riwayat.', 'error');
+      }
+    } catch (err) {
+      console.error('Error saat menghapus riwayat:', err);
+      showToast('Gagal terhubung ke server untuk menghapus riwayat.', 'error');
+    }
+  }
+
+  // Event Listeners untuk Refresh & Export CSV
+  if (btnExportCsv) {
+    btnExportCsv.addEventListener('click', () => {
+      const csrfToken = getCsrfToken();
+      if (!csrfToken) {
+        showToast('Token CSRF tidak ditemukan. Silakan refresh halaman.', 'error');
+        return;
+      }
+      window.location.href = `api/export_csv.php?csrf_token=${encodeURIComponent(csrfToken)}`;
+    });
+  }
+
+  if (btnRefreshHistory) {
+    btnRefreshHistory.addEventListener('click', () => {
+      btnRefreshHistory.disabled = true;
+      const oldHtml = btnRefreshHistory.innerHTML;
+      btnRefreshHistory.innerHTML = '⏳ Memuat...';
+      loadHistory().finally(() => {
+        btnRefreshHistory.disabled = false;
+        btnRefreshHistory.innerHTML = oldHtml;
+      });
+    });
+  }
+
   // Muat pengaturan awal dari database
   loadSettings();
+
+  // Muat galeri riwayat awal
+  loadHistory();
 
   // Muat model saat halaman pertama kali dibuka
   loadModel();

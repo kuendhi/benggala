@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS `detection_logs` (
     `object_count` INT DEFAULT 0,
     `is_cctv` TINYINT(1) DEFAULT 0,
     `telegram_sent` TINYINT(1) DEFAULT 0,
+    `ai_provider` VARCHAR(32) NULL,
+    `analysis_result` TEXT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
