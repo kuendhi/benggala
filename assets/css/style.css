@@ -1796,35 +1796,119 @@ body.mode-emergency .mission-status-badge {
 @media (max-width: 767px) {
   .hud-header {
     height: 48px;
-    padding: 0 0.8rem;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100vw;
+    box-sizing: border-box;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .hud-header::-webkit-scrollbar {
+    display: none;
+  }
+
+  .hud-header-left {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+  }
+
+  .hud-brand {
+    gap: 0.35rem;
+  }
+
+  .hud-logo-icon {
+    font-size: 1.1rem;
   }
 
   .hud-logo-text {
-    font-size: 0.95rem;
+    font-size: 0.88rem;
+    letter-spacing: 0.5px;
   }
 
   .hud-os-badge {
-    display: none;
+    display: none !important;
   }
 
   .status-badge {
-    font-size: 0.68rem;
-    padding: 0.2rem 0.5rem;
+    font-size: 0.65rem !important;
+    padding: 2px 7px !important;
+    white-space: nowrap;
+    font-weight: 600;
   }
 
-  .mission-clock {
-    display: none;
+  /* Sembunyikan blok status tengah di HP agar seluruh tombol aksi kanan & VISI 2027 terlihat utuh */
+  .hud-header-center {
+    display: none !important;
   }
 
-  .mission-status-badge {
+  /* Tombol Aksi Kanan: Selalu terlihat utuh, prioritas utama */
+  .hud-header-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0 !important;
+  }
+
+  /* Tombol 📡 VISI 2027: Selalu Menonjol, Utuh dan Mudah Diklik di Layar HP */
+  .hud-btn-accent, #btnRoadmap {
+    height: 32px;
+    padding: 0 9px;
     font-size: 0.72rem;
-    padding: 0.2rem 0.5rem;
+    font-weight: 700;
+    white-space: nowrap;
+    flex-shrink: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: linear-gradient(135deg, rgba(255, 171, 0, 0.35), rgba(255, 109, 0, 0.5));
+    border: 1px solid #FFD54F;
+    box-shadow: 0 0 10px rgba(255, 171, 0, 0.5);
   }
 
   .hud-btn {
-    width: 32px;
-    height: 32px;
-    font-size: 0.9rem;
+    width: 30px;
+    height: 30px;
+    font-size: 0.85rem;
+    padding: 0;
+    flex-shrink: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Layar HP Sangat Ramping (< 360px) */
+  @media (max-width: 360px) {
+    .hud-header {
+      padding: 0 4px;
+      gap: 3px;
+    }
+
+    .hud-logo-text {
+      font-size: 0.78rem;
+    }
+
+    .status-badge {
+      font-size: 0.58rem !important;
+      padding: 2px 4px !important;
+    }
+
+    .hud-btn-accent, #btnRoadmap {
+      height: 30px;
+      padding: 0 6px;
+      font-size: 0.65rem;
+    }
+
+    .hud-btn {
+      width: 27px;
+      height: 27px;
+      font-size: 0.78rem;
+    }
   }
 
   /* Radar & Telemetri Compact di HP agar tidak menutup kamera */

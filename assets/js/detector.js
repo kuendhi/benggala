@@ -271,7 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Update badge status UI
       modelStatus.classList.remove('loading', 'error');
-      modelStatus.classList.add('ready', 'hud-live-stats');
+      modelStatus.classList.add('ready');
       modelStatus.innerHTML = '<span class="status-dot"></span> Model Siap';
 
       // Aktifkan tombol kontrol kamera
@@ -280,7 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
       console.error('Gagal memuat model COCO-SSD:', error);
       modelStatus.classList.remove('loading', 'ready');
-      modelStatus.classList.add('error', 'hud-live-stats');
+      modelStatus.classList.add('error');
       modelStatus.innerHTML = '<span class="status-dot"></span> Gagal Memuat Model';
       showCameraError('Gagal memuat model AI. Pastikan CDN TensorFlow.js & COCO-SSD dapat diakses.');
     }

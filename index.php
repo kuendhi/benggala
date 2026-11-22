@@ -33,13 +33,13 @@ if (empty($_SESSION['csrf_token'])) {
     <!-- 1. Header HUD (.hud-header) -->
     <header class="hud-header">
       <!-- Kiri: Logo + OS Badge + Model Status -->
-      <div class="hud-header-left telemetry-box">
+      <div class="hud-header-left">
         <div class="hud-brand">
           <span class="hud-logo-icon">👁️</span>
           <span class="hud-logo-text">BENGGALA</span>
           <span class="hud-os-badge">OS v2.0</span>
         </div>
-        <span id="modelStatus" class="status-badge loading hud-live-stats">
+        <span id="modelStatus" class="status-badge loading">
           <span class="status-dot"></span> Memuat Model AI...
         </span>
       </div>
@@ -405,6 +405,13 @@ if (empty($_SESSION['csrf_token'])) {
           <button type="button" id="btnCloseSettings" class="btn-close-panel" data-close-panel title="Tutup Panel">✕</button>
         </div>
         <div class="panel-body">
+          <!-- Tombol Pintas Visi 2027 (Mudah Diakses dari Layar HP) -->
+          <div style="margin-bottom: 1rem;">
+            <button type="button" class="btn btn-action" id="btnRoadmapFromPanel" style="width: 100%; justify-content: center; background: linear-gradient(135deg, rgba(255, 171, 0, 0.32), rgba(255, 109, 0, 0.45)); border: 1px solid #FFD54F; color: #FFFFFF; font-weight: 700; font-size: 0.85rem; padding: 10px;" onclick="document.getElementById('btnRoadmap').click()">
+              📡 Buka Presentasi Visi Pengembangan 2027
+            </button>
+          </div>
+
           <!-- Konfigurasi LLM -->
           <div class="settings-section">
             <h4 class="section-title">Konfigurasi AI & LLM</h4>
