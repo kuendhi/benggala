@@ -858,3 +858,128 @@ input[type="range"]::-moz-range-thumb:hover {
   border: 1px solid rgba(6, 182, 212, 0.25);
   margin-left: 0.35rem;
 }
+
+
+/* ==========================================================================
+   CCTV Mode Components
+   ========================================================================== */
+.cctv-box {
+  background-color: rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.2rem;
+}
+
+.cctv-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cctv-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.cctv-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  transition: all 0.3s ease;
+}
+
+.cctv-badge.off {
+  background-color: #334155;
+  color: #94a3b8;
+}
+
+.cctv-badge.on {
+  background-color: rgba(239, 68, 68, 0.25);
+  color: #f87171;
+  border: 1px solid #ef4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+  animation: pulse-cctv 1.2s infinite;
+}
+
+@keyframes pulse-cctv {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.95); }
+}
+
+.cctv-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.cctv-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.cctv-select {
+  max-width: 160px;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.82rem;
+}
+
+.cctv-input-num {
+  width: 75px;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.82rem;
+}
+
+.cctv-checkbox-row {
+  display: flex;
+  align-items: center;
+  margin-top: 0.15rem;
+}
+
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-container input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: var(--accent-cyan);
+}
+
+.checkbox-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.btn-cctv {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.85rem;
+  background: linear-gradient(135deg, #334155 0%, #475569 100%);
+  color: #ffffff;
+  border-radius: var(--radius-md);
+  border: 1px solid #64748b;
+  transition: all 0.2s ease;
+}
+
+.btn-cctv:hover {
+  background: linear-gradient(135deg, #475569 0%, #64748b 100%);
+}
+
+.btn-cctv.active {
+  background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+  border-color: #f87171;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.45);
+}

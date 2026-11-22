@@ -150,6 +150,46 @@ if (empty($_SESSION['csrf_token'])) {
               ✨ Analisis Cerdas (LLM)
             </button>
           </div>
+
+          <div class="action-divider"></div>
+
+          <!-- Blok Mode CCTV Pintar -->
+          <div class="control-item cctv-box">
+            <div class="cctv-header">
+              <label class="cctv-label">🎥 Mode CCTV Pintar</label>
+              <span id="cctvStatusBadge" class="cctv-badge off">OFF</span>
+            </div>
+            
+            <div class="cctv-settings">
+              <div class="cctv-row">
+                <label for="cctvTarget">Target:</label>
+                <select id="cctvTarget" class="form-select cctv-select">
+                  <option value="Orang" selected>Orang (Person)</option>
+                  <option value="Mobil">Mobil (Car)</option>
+                  <option value="Motor">Motor (Motorcycle)</option>
+                  <option value="Kucing">Kucing (Cat)</option>
+                  <option value="Anjing">Anjing (Dog)</option>
+                  <option value="SEMUA">Semua Objek</option>
+                </select>
+              </div>
+
+              <div class="cctv-row">
+                <label for="cctvCooldown">Jeda (detik):</label>
+                <input type="number" id="cctvCooldown" class="form-input cctv-input-num" value="15" min="3" max="120" step="1">
+              </div>
+
+              <div class="cctv-checkbox-row">
+                <label class="checkbox-container">
+                  <input type="checkbox" id="cctvAlarm" checked>
+                  <span class="checkbox-label">🔊 Bunyikan Sirine Lokal</span>
+                </label>
+              </div>
+            </div>
+
+            <button type="button" id="btnToggleCCTV" class="btn btn-cctv">
+              ▶ Aktifkan CCTV
+            </button>
+          </div>
         </div>
 
         <!-- Panel Statistik Live -->
@@ -175,6 +215,9 @@ if (empty($_SESSION['csrf_token'])) {
 
   <!-- Kamus Bahasa Indonesia COCO-SSD (Anti-Cache) -->
   <script src="assets/js/coco_id.js?v=<?= filemtime('assets/js/coco_id.js') ?>"></script>
+
+  <!-- Modul Mode CCTV Pintar (Anti-Cache) -->
+  <script src="assets/js/cctv.js?v=<?= filemtime('assets/js/cctv.js') ?>"></script>
 
   <!-- Detector Script (Anti-Cache) -->
   <script src="assets/js/detector.js?v=<?= filemtime('assets/js/detector.js') ?>"></script>

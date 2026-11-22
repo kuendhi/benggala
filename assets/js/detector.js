@@ -244,6 +244,21 @@ document.addEventListener('DOMContentLoaded', () => {
     btnSnapshot.disabled = true;
     if (btnAnalyzeLLM) btnAnalyzeLLM.disabled = true;
 
+    // Nonaktifkan CCTV jika kamera dimatikan
+    if (window.BenggalaCCTV && window.BenggalaCCTV.isActive) {
+      window.BenggalaCCTV.isActive = false;
+      const btnToggleCCTV = document.getElementById('btnToggleCCTV');
+      const cctvStatusBadge = document.getElementById('cctvStatusBadge');
+      if (btnToggleCCTV) {
+        btnToggleCCTV.classList.remove('active');
+        btnToggleCCTV.innerHTML = '▶ Aktifkan CCTV';
+      }
+      if (cctvStatusBadge) {
+        cctvStatusBadge.className = 'cctv-badge off';
+        cctvStatusBadge.textContent = 'OFF';
+      }
+    }
+
     currentPredictions = [];
     resetStatsPanel();
   }
@@ -292,6 +307,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
           renderPredictions(filtered);
           updateLiveStats(filtered);
+
+          // Pengecekan Otomatis Mode CCTV Pintar
+          if (window.BenggalaCCTV && window.BenggalaCCTV.isActive && filtered.length > 0) {
+            const translatedForCCTV = filtered.map(p => ({
+              translated_name: typeof window.translateLabel === 'function' ? window.translateLabel(p.class) : p.class,
+              class: p.class,
+              score: p.score,
+              bbox: p.bbox
+            }));
+
+            window.BenggalaCCTV.checkDetections(translatedForCCTV, (matchedTarget) => {
+              showToast(`🚨 CCTV: Target [${matchedTarget}] terdeteksi! Mengambil snapshot bukti...`, 'error');
+              handleSaveSnapshot();
+            });
+          }
         } catch (err) {
           console.warn('Kesalahan saat deteksi frame:', err);
         } finally {
@@ -729,6 +759,72 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Inisialisasi status kalibrasi dari localStorage
   updateCalibrationUI();
+
+  // =========================================================================
+  // 10. Event Listeners Mode CCTV Pintar
+  // =========================================================================
+  const btnToggleCCTV = document.getElementById('btnToggleCCTV');
+  const cctvStatusBadge = document.getElementById('cctvStatusBadge');
+  const cctvTargetSelect = document.getElementById('cctvTarget');
+  const cctvCooldownInput = document.getElementById('cctvCooldown');
+  const cctvAlarmCheckbox = document.getElementById('cctvAlarm');
+
+  if (btnToggleCCTV && window.BenggalaCCTV) {
+    btnToggleCCTV.addEventListener('click', () => {
+      if (!isStreaming && !window.BenggalaCCTV.isActive) {
+        showToast('Mulai kamera terlebih dahulu sebelum mengaktifkan Mode CCTV', 'error');
+        return;
+      }
+
+      window.BenggalaCCTV.isActive = !window.BenggalaCCTV.isActive;
+
+      if (cctvTargetSelect) {
+        window.BenggalaCCTV.targetLabel = cctvTargetSelect.value;
+      }
+      if (cctvCooldownInput) {
+        window.BenggalaCCTV.cooldownSec = Math.max(3, parseInt(cctvCooldownInput.value) || 15);
+      }
+      if (cctvAlarmCheckbox) {
+        window.BenggalaCCTV.alarmEnabled = cctvAlarmCheckbox.checked;
+      }
+
+      if (window.BenggalaCCTV.isActive) {
+        btnToggleCCTV.classList.add('active');
+        btnToggleCCTV.innerHTML = '⏹ Matikan CCTV';
+        if (cctvStatusBadge) {
+          cctvStatusBadge.className = 'cctv-badge on';
+          cctvStatusBadge.textContent = 'REC';
+        }
+        showToast(`Mode CCTV Aktif (Target: ${window.BenggalaCCTV.targetLabel})`, 'success');
+      } else {
+        btnToggleCCTV.classList.remove('active');
+        btnToggleCCTV.innerHTML = '▶ Aktifkan CCTV';
+        if (cctvStatusBadge) {
+          cctvStatusBadge.className = 'cctv-badge off';
+          cctvStatusBadge.textContent = 'OFF';
+        }
+        showToast('Mode CCTV Dinonaktifkan', 'info');
+      }
+    });
+
+    if (cctvTargetSelect) {
+      cctvTargetSelect.addEventListener('change', (e) => {
+        window.BenggalaCCTV.targetLabel = e.target.value;
+      });
+    }
+
+    if (cctvCooldownInput) {
+      cctvCooldownInput.addEventListener('change', (e) => {
+        window.BenggalaCCTV.cooldownSec = Math.max(3, parseInt(e.target.value) || 15);
+      });
+    }
+
+    if (cctvAlarmCheckbox) {
+      cctvAlarmCheckbox.addEventListener('change', (e) => {
+        window.BenggalaCCTV.alarmEnabled = e.target.checked;
+      });
+    }
+  }
 
   // Muat model saat halaman pertama kali dibuka
   loadModel();
