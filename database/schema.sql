@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS `detection_logs` (
     `telegram_sent` TINYINT(1) DEFAULT 0,
     `ai_provider` VARCHAR(32) NULL,
     `analysis_result` TEXT NULL,
+    `llm_provider` VARCHAR(32) NULL,
+    `llm_analysis` TEXT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

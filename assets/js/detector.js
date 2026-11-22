@@ -393,6 +393,21 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           renderPredictions(filtered);
+
+          // Update & Gambar Auto-Lock Target (Fase 1: Cyan -> Fase 2: Amber -> Fase 3: Hijau)
+          if (window.BenggalaAutoLock && window.BenggalaAutoLock.enabled) {
+            window.BenggalaAutoLock.update(
+              filtered,
+              performance.now(),
+              (lockedTarget) => {
+                handleAutoLockPipeline(lockedTarget);
+              },
+              canvas.width,
+              canvas.height
+            );
+            window.BenggalaAutoLock.drawLockOverlay(ctx);
+          }
+
           updateLiveStats(filtered);
 
           // Update Telemetri & Mini Radar YOULO OS
@@ -683,6 +698,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         showToast(msg, 'success');
         loadHistory();
+        return result;
       } else {
         showToast(result.message || 'Gagal menyimpan snapshot.', 'error');
       }
@@ -797,6 +813,105 @@ document.addEventListener('DOMContentLoaded', () => {
     } finally {
       btnAnalyzeLLM.disabled = false;
       btnAnalyzeLLM.innerHTML = originalText;
+    }
+  }
+
+  // =========================================================================
+  // Pipeline AI Otomatis (Auto-Lock -> Snapshot -> Analisis AI -> Simpan DB & Galeri)
+  // =========================================================================
+  let isAutoLockProcessing = false;
+
+  async function handleAutoLockPipeline(lockedObj) {
+    if (isAutoLockProcessing) return;
+    isAutoLockProcessing = true;
+
+    const objName = typeof window.translateLabel === 'function' ? window.translateLabel(lockedObj.class) : lockedObj.class;
+    showToast(`🎯 Target [${objName}] terkunci! Menjalankan snapshot otomatis...`, 'info');
+
+    try {
+      // 1. Eksekusi Snapshot Otomatis
+      const snapResult = await handleSaveSnapshot(false);
+      const logId = (snapResult && snapResult.log_id) ? snapResult.log_id : 0;
+
+      // 2. Eksekusi Analisis Vision AI Otomatis
+      showToast(`🤖 Memulai analisis AI otomatis untuk [${objName}]...`, 'info');
+      await executeAiAnalysisWithLog(logId, [lockedObj]);
+
+    } catch (err) {
+      console.warn('Pipeline Auto-Lock gagal:', err);
+    } finally {
+      isAutoLockProcessing = false;
+    }
+  }
+
+  async function executeAiAnalysisWithLog(logId = 0, objectsToAnalyze = null) {
+    const csrfToken = getCsrfToken();
+    const provider = llmProviderSelect ? llmProviderSelect.value : 'deepseek';
+    const targetObjects = objectsToAnalyze || currentPredictions;
+
+    const detectedObjects = targetObjects.map(p => {
+      const objItem = {
+        name: typeof window.translateLabel === 'function' ? window.translateLabel(p.class) : p.class,
+        class_en: p.class,
+        score: p.score
+      };
+      if (pixelsPerCm && pixelsPerCm > 0 && p.bbox) {
+        const wCm = (p.bbox[2] / pixelsPerCm).toFixed(1);
+        const hCm = (p.bbox[3] / pixelsPerCm).toFixed(1);
+        objItem.ukuran = `${wCm}x${hCm} cm`;
+      }
+      return objItem;
+    });
+
+    const compressedImage = isStreaming ? captureCompressedFrame() : null;
+    const requestPayload = {
+      provider: provider,
+      objects: detectedObjects,
+      log_id: logId
+    };
+    if (compressedImage) {
+      requestPayload.image = compressedImage;
+    }
+
+    try {
+      const response = await fetch('api/analyze_llm.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-Token': csrfToken
+        },
+        body: JSON.stringify(requestPayload)
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.status === 'success') {
+        if (llmProviderBadge) {
+          llmProviderBadge.textContent = result.provider_used || provider;
+        }
+        if (llmFallbackBadge) {
+          llmFallbackBadge.style.display = result.fallback_triggered ? 'inline-block' : 'none';
+        }
+        if (llmAnalysisContent) {
+          llmAnalysisContent.textContent = result.analysis;
+        }
+
+        showToast(`Analisis AI tersimpan ke galeri (${result.provider_used})!`, 'success');
+
+        // Buka panel AI jika pengguna belum membuka panel lain
+        if (window.BenggalaCockpit && typeof window.BenggalaCockpit.openPanel === 'function') {
+          window.BenggalaCockpit.openPanel('ai');
+        }
+
+        // Muat ulang riwayat agar kartu di galeri langsung menampilkan analisis AI
+        loadHistory();
+      } else {
+        const errorMsg = result.message || 'Gagal memproses analisis AI.';
+        showToast(errorMsg, 'error');
+      }
+    } catch (err) {
+      console.error('Error saat analisis AI otomatis:', err);
     }
   }
 

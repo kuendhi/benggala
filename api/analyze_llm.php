@@ -66,6 +66,33 @@ $requestedProvider = strtolower(trim((string)($input['provider'] ?? ($env['LLM_D
 $primary = ($requestedProvider === 'gemini') ? 'gemini' : 'deepseek';
 $secondary = ($primary === 'deepseek') ? 'gemini' : 'deepseek';
 
+// 4b. Ambil opsional log_id untuk pipeline otomatis ke Galeri Riwayat
+$logId = filter_var($input['log_id'] ?? null, FILTER_VALIDATE_INT);
+$logId = ($logId !== false && $logId !== null && $logId > 0) ? (int)$logId : 0;
+
+// Helper untuk menyimpan hasil analisis AI ke baris log di detection_logs
+function saveAnalysisToLog(int $id, string $provider, string $analysis): void {
+    if ($id <= 0) return;
+    try {
+        require_once __DIR__ . DIRECTORY_SEPARATOR . 'db.php';
+        $pdo = getDbConnection();
+        $stmt = $pdo->prepare("
+            UPDATE detection_logs 
+            SET ai_provider = :p1, analysis_result = :a1, llm_provider = :p2, llm_analysis = :a2 
+            WHERE id = :id
+        ");
+        $stmt->execute([
+            ':p1' => $provider,
+            ':a1' => $analysis,
+            ':p2' => $provider,
+            ':a2' => $analysis,
+            ':id' => $id
+        ]);
+    } catch (Throwable $e) {
+        error_log("Database update error in analyze_llm: " . $e->getMessage());
+    }
+}
+
 // =============================================================================
 // FUNGSI PROVIDER 1: DeepSeek API
 // =============================================================================
@@ -268,11 +295,16 @@ function logFallbackFailure(string $primary, string $secondary, string $reason):
 $primaryResult = ($primary === 'deepseek') ? callDeepSeek($promptText, $env) : callGemini($promptText, $env, $imageBase64);
 
 if ($primaryResult['ok'] === true) {
+    if ($logId > 0) {
+        saveAnalysisToLog($logId, $primary, $primaryResult['text']);
+    }
+
     echo json_encode([
         'status' => 'success',
         'provider_used' => $primary,
         'fallback_triggered' => false,
-        'analysis' => $primaryResult['text']
+        'analysis' => $primaryResult['text'],
+        'log_id' => $logId
     ]);
     exit;
 }
@@ -283,11 +315,16 @@ logFallbackFailure($primary, $secondary, $primaryResult['error']);
 $secondaryResult = ($secondary === 'deepseek') ? callDeepSeek($promptText, $env) : callGemini($promptText, $env, $imageBase64);
 
 if ($secondaryResult['ok'] === true) {
+    if ($logId > 0) {
+        saveAnalysisToLog($logId, $secondary, $secondaryResult['text']);
+    }
+
     echo json_encode([
         'status' => 'success',
         'provider_used' => $secondary,
         'fallback_triggered' => true,
-        'analysis' => $secondaryResult['text']
+        'analysis' => $secondaryResult['text'],
+        'log_id' => $logId
     ]);
     exit;
 }

@@ -169,6 +169,8 @@ try {
         ':tg' => $telegramSent ? 1 : 0
     ]);
 
+    $logId = (int)$pdo->lastInsertId();
+
 } catch (Throwable $dbErr) {
     // Database / Telegram error tidak menggagalkan penyimpanan lokal
     error_log("Database/Telegram error in save_snapshot: " . $dbErr->getMessage());
@@ -179,6 +181,7 @@ echo json_encode([
     'message' => 'Snapshot berhasil disimpan',
     'filename' => $filename,
     'path' => 'uploads/snapshots/' . $filename,
+    'log_id' => $logId ?? 0,
     'is_cctv' => $isCctv,
     'telegram_sent' => $telegramSent
 ]);
