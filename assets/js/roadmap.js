@@ -1,21 +1,23 @@
 /**
  * BENGGALA // YOULO OS - Mode Transmisi Taktis & Breaking News (Visi 2027)
- * Interactive Tactical Presentation & Live Breaking News Ticker (Client-Side, 0% Server Load)
+ * Interactive Tactical Presentation: 6 Slides (3 Cloud AI + 3 Physical AI / ESP32 Concepts)
+ * Includes Live ESP32 Signal Simulation Terminal & Juror Voice Narration
  */
 
 (function () {
   'use strict';
 
-  // 1. Definisi 5 Slide Roadmap Berbasis Pendanaan & Ekosistem Google
+  // 1. Definisi 6 Slide Tajam (3 Cloud AI + 3 Konsep Physical AI / ESP32)
   const SLIDES = [
     {
       num: '01',
-      tag: 'FASE 1 // REAL-TIME CLOUD',
+      tag: 'CLOUD AI // FASE 1',
       title: 'GEMINI LIVE API (STREAMING 2 ARAH)',
-      current: 'Auto-Lock 4 detik dan snapshot bertahap berbasis REST API untuk menjaga efisiensi kuota gratis server.',
-      target: 'Upgrade ke Google Gemini Multimodal Live API (WebSockets). Kamera & mikrofon terhubung real-time streaming tanpa jeda; penyandang tunanetra bisa langsung mengobrol natural dua arah selayaknya berbicara dengan pemandu visual manusia.',
+      now: 'Auto-Lock 4 detik (hemat kuota gratis).',
+      future: 'Upgrade ke Google Gemini Multimodal Live API (WebSockets) agar pengguna & tunanetra bisa mengobrol real-time dengan kamera tanpa jeda.',
+      impact: '⚡ Respon Interaktif Tanpa Jeda',
+      narration: 'Fase satu, dengan pendanaan kami upgrade ke Gemini Live API agar kamera dan suara terhubung streaming dua arah tanpa jeda.',
       svg: `<svg viewBox="0 0 360 220" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <!-- Background Grid Taktis -->
         <rect width="360" height="220" rx="10" fill="#020617"/>
         <path d="M20 30H340M20 70H340M20 110H340M20 150H340M20 190H340" stroke="rgba(0,229,255,0.06)" stroke-width="1"/>
         <path d="M60 10V210M120 10V210M180 10V210M240 10V210M300 10V210" stroke="rgba(0,229,255,0.06)" stroke-width="1"/>
@@ -30,7 +32,8 @@
         <line x1="37" y1="110" x2="53" y2="110" stroke="#00E5FF" stroke-width="2"/>
         <line x1="137" y1="110" x2="153" y2="110" stroke="#00E5FF" stroke-width="2"/>
 
-        <!-- Gelombang Suara Audio Dua Arah (Voice Waveforms) -->
+        <!-- Gelombang Suara Audio Dua Arah Beranimasi -->
+        <path class="svg-pulse-line" d="M150 110H220" stroke="#00E676" stroke-width="2.5"/>
         <rect x="160" y="98" width="4" height="24" rx="2" fill="#FFAB00"/>
         <rect x="170" y="85" width="4" height="50" rx="2" fill="#00E5FF"/>
         <rect x="180" y="70" width="4" height="80" rx="2" fill="#00E676"/>
@@ -39,76 +42,73 @@
 
         <!-- Google Gemini Live Cloud Node & Satelit -->
         <g transform="translate(225, 60)">
-          <!-- Cloud Path -->
           <path d="M30 50C24 50 15 54 15 65C15 75 25 80 35 80H80C90 80 98 72 98 62C98 52 90 45 80 45C79 32 68 22 55 22C44 22 35 28 32 38C26 38 20 44 20 50" stroke="#00E5FF" stroke-width="2.2" fill="rgba(0,229,255,0.12)"/>
-          <!-- Sinyal Streaming -->
           <circle cx="55" cy="52" r="14" stroke="#00E676" stroke-width="1.5" stroke-dasharray="3 3"/>
           <circle cx="55" cy="52" r="5" fill="#00E676"/>
-          <!-- Label Satelit / Cloud -->
           <text x="55" y="96" fill="#00E5FF" font-family="'JetBrains Mono', monospace" font-size="9" text-anchor="middle" font-weight="bold">GEMINI 3.8 LIVE</text>
         </g>
 
-        <!-- Panah Transmisi Streaming Dua Arah -->
-        <path d="M148 102H156M208 102H220" stroke="#00E676" stroke-width="2" stroke-linecap="round"/>
-        <polygon points="158,102 153,98 153,106" fill="#00E676"/>
-        <polygon points="210,102 215,98 215,106" fill="#00E676"/>
-        <text x="180" y="172" fill="#FFAB00" font-family="'JetBrains Mono', monospace" font-size="8.5" text-anchor="middle" letter-spacing="1">BIDIRECTIONAL WEBSOCKETS</text>
+        <text x="180" y="176" fill="#FFAB00" font-family="'JetBrains Mono', monospace" font-size="8.5" text-anchor="middle" letter-spacing="1">BIDIRECTIONAL WEBSOCKETS</text>
       </svg>`
     },
     {
       num: '02',
-      tag: 'FASE 2 // SPESIALISASI INDUSTRI',
-      title: 'CUSTOM AI VIA GOOGLE VERTEX AI',
-      current: 'Model umum COCO-SSD bawaan (80 kelas objek standar dunia seperti orang, kursi, tas, mobil).',
-      target: 'Pelatihan model visi kustom di Google Cloud Vertex AI untuk sektor spesifik lokal: klasifikasi penyakit/hama tanaman pertanian & kematangan buah, inspeksi cacat kemasan UMKM, hingga pembacaan pelat nomor kendaraan otomatis (ANPR).',
+      tag: 'CLOUD AI // FASE 2',
+      title: 'CUSTOM MODEL GOOGLE VERTEX AI',
+      now: 'Model umum COCO-SSD (80 objek standar).',
+      future: 'Latih model khusus di Google Vertex AI untuk hama pertanian, cacat kemasan pabrik UMKM, dan baca pelat nomor (ANPR).',
+      impact: '🎯 Akurasi Spesifik Industri Lokal',
+      narration: 'Fase dua, melatih model khusus di Google Vertex AI untuk mendeteksi hama pertanian, cacat kemasan UMKM, hingga pelat nomor.',
       svg: `<svg viewBox="0 0 360 220" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect width="360" height="220" rx="10" fill="#020617"/>
         <path d="M20 30H340M20 70H340M20 110H340M20 150H340M20 190H340" stroke="rgba(0,229,255,0.06)" stroke-width="1"/>
-        <path d="M60 10V210M120 10V210M180 10V210M240 10V210M300 10V210" stroke="rgba(0,229,255,0.06)" stroke-width="1"/>
 
         <!-- Chip Prosesor Neural Google Vertex AI -->
         <g transform="translate(45, 60)">
           <rect x="20" y="20" width="70" height="70" rx="8" fill="#0A1628" stroke="#00E5FF" stroke-width="2"/>
           <rect x="35" y="35" width="40" height="40" rx="4" fill="rgba(0,229,255,0.15)" stroke="#00E676" stroke-width="1.5"/>
-          <!-- Core Vertex Nodes -->
           <circle cx="55" cy="55" r="6" fill="#00E5FF"/>
           <line x1="42" y1="42" x2="68" y2="68" stroke="#FFAB00" stroke-width="1.5"/>
           <line x1="68" y1="42" x2="42" y2="68" stroke="#FFAB00" stroke-width="1.5"/>
-          <!-- Pin Kiri, Kanan, Atas, Bawah -->
           <path d="M20 35H10M20 55H10M20 75H10M90 35H100M90 55H100M90 75H100M35 20V10M55 20V10M75 20V10M35 90V100M55 90V100M75 90V100" stroke="#00E5FF" stroke-width="1.5"/>
           <text x="55" y="108" fill="#00E5FF" font-family="'JetBrains Mono', monospace" font-size="8.5" text-anchor="middle" font-weight="bold">VERTEX AI</text>
         </g>
 
-        <!-- Jalur Bus Data & Neural Links -->
-        <path d="M145 115H200M200 115L235 75M200 115L235 155" stroke="#00E676" stroke-width="2" stroke-dasharray="4 2"/>
+        <!-- Garis Bus Data Beranimasi Sinyal Pulsa -->
+        <path class="svg-pulse-line" d="M145 115H200M200 115L235 65M200 115L235 115M200 115L235 165" stroke="#00E676" stroke-width="2"/>
 
-        <!-- Node Sektor 1: Agritech / Daun & Hama -->
-        <g transform="translate(235, 45)">
-          <circle cx="30" cy="30" r="28" fill="#0A1628" stroke="#00E676" stroke-width="2"/>
-          <!-- Daun Simbolik -->
-          <path d="M20 35C20 22 32 15 42 16C42 28 34 38 20 40Z" fill="rgba(0,230,118,0.25)" stroke="#00E676" stroke-width="1.5"/>
-          <path d="M20 40L38 20" stroke="#00E676" stroke-width="1.2"/>
-          <text x="30" y="47" fill="#00E676" font-family="'JetBrains Mono', monospace" font-size="7.5" text-anchor="middle">AGRI-VISION</text>
+        <!-- 3 Node Spesialisasi Industri -->
+        <g transform="translate(235, 40)">
+          <circle cx="25" cy="25" r="22" fill="#0A1628" stroke="#00E676" stroke-width="1.8"/>
+          <path d="M17 30C17 18 27 12 35 13C35 23 28 31 17 33Z" fill="rgba(0,230,118,0.3)" stroke="#00E676" stroke-width="1.2"/>
+          <text x="60" y="28" fill="#00E676" font-family="'JetBrains Mono', monospace" font-size="8" font-weight="bold">PERTANIAN &amp; HAMA</text>
         </g>
 
-        <!-- Node Sektor 2: QC Pabrik / UMKM -->
-        <g transform="translate(235, 125)">
-          <circle cx="30" cy="30" r="28" fill="#0A1628" stroke="#FFAB00" stroke-width="2"/>
-          <!-- Gigi Gear QC -->
-          <circle cx="30" cy="30" r="10" stroke="#FFAB00" stroke-width="2" fill="none"/>
-          <path d="M30 16V22M30 38V44M16 30H22M38 30H44M20 20L25 25M35 35L40 40M40 20L35 25M25 35L20 40" stroke="#FFAB00" stroke-width="2"/>
-          <text x="30" y="47" fill="#FFAB00" font-family="'JetBrains Mono', monospace" font-size="7.5" text-anchor="middle">QC UMKM</text>
+        <g transform="translate(235, 90)">
+          <circle cx="25" cy="25" r="22" fill="#0A1628" stroke="#FFAB00" stroke-width="1.8"/>
+          <circle cx="25" cy="25" r="8" stroke="#FFAB00" stroke-width="1.5"/>
+          <path d="M25 13V18M25 32V37M13 25H18M32 25H37" stroke="#FFAB00" stroke-width="1.8"/>
+          <text x="60" y="28" fill="#FFAB00" font-family="'JetBrains Mono', monospace" font-size="8" font-weight="bold">CACAT QC UMKM</text>
         </g>
 
-        <text x="180" y="195" fill="#E2E8F0" font-family="'JetBrains Mono', monospace" font-size="8.5" text-anchor="middle">MODEL CUSTOM: AKURASI HINGGA 99.4%</text>
+        <g transform="translate(235, 140)">
+          <circle cx="25" cy="25" r="22" fill="#0A1628" stroke="#00E5FF" stroke-width="1.8"/>
+          <rect x="14" y="18" width="22" height="14" rx="2" stroke="#00E5FF" stroke-width="1.2"/>
+          <text x="25" y="28" fill="#00E5FF" font-family="'JetBrains Mono', monospace" font-size="6" text-anchor="middle">ANPR</text>
+          <text x="60" y="28" fill="#00E5FF" font-family="'JetBrains Mono', monospace" font-size="8" font-weight="bold">PELAT NOMOR</text>
+        </g>
+
+        <text x="180" y="202" fill="#94A3B8" font-family="'JetBrains Mono', monospace" font-size="8.5" text-anchor="middle">MODEL TRAINING KUSTOM // GOOGLE CLOUD VERTEX AI</text>
       </svg>`
     },
     {
       num: '03',
-      tag: 'FASE 3 // SKALA KOTA & DESA',
+      tag: 'CLOUD AI // FASE 3',
       title: 'COMMAND CENTER & GOOGLE MAPS 3D',
-      current: '1 perangkat = 1 kamera lokal pada server Apache/PHP Shared Hosting.',
-      target: 'Arsitektur Serverless Google Cloud Run & Firebase Realtime Database untuk agregasi ratusan CCTV aktif sekaligus secara terpusat, dengan titik koordinat insiden darurat langsung dipetakan pada Google Maps 3D Photorealistic Tiles.',
+      now: '1 perangkat = 1 kamera di Shared Hosting.',
+      future: 'Migrasi ke Google Cloud Run + Firebase untuk memantau ratusan CCTV sekaligus dengan titik alarm di Google Maps 3D.',
+      impact: '🗺️ Pantau Ratusan Titik Sekaligus',
+      narration: 'Fase tiga, membangun Command Center berbasis Google Cloud dan Maps 3D untuk memantau ratusan kamera secara bersamaan.',
       svg: `<svg viewBox="0 0 360 220" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect width="360" height="220" rx="10" fill="#020617"/>
         
@@ -117,10 +117,12 @@
           <rect x="-90" y="-90" width="180" height="180" fill="#0A1628" stroke="#00E5FF" stroke-width="2"/>
           <path d="M-60 -90V90M-30 -90V90M0 -90V90M30 -90V90M60 -90V90" stroke="rgba(0,229,255,0.2)" stroke-width="1"/>
           <path d="M-90 -60H90M-90 -30H90M-90 0H90M-90 30H90M-90 60H90" stroke="rgba(0,229,255,0.2)" stroke-width="1"/>
-          <!-- Gedung 3D Block -->
           <rect x="-20" y="-40" width="30" height="30" fill="rgba(0,229,255,0.3)" stroke="#00E5FF" stroke-width="1.5"/>
           <rect x="20" y="10" width="40" height="40" fill="rgba(255,171,0,0.3)" stroke="#FFAB00" stroke-width="1.5"/>
         </g>
+
+        <!-- Garis Uplink Beranimasi -->
+        <path class="svg-pulse-line" d="M140 70V15M230 55V15M200 115V15" stroke="#00E5FF" stroke-width="1.5"/>
 
         <!-- Titik Radar Titik Alarm Real-Time 1 -->
         <g transform="translate(140, 95)">
@@ -148,104 +150,176 @@
           <text x="0" y="-17" fill="#020617" font-family="'JetBrains Mono', monospace" font-size="6.5" text-anchor="middle" font-weight="bold">PATROL 03</text>
         </g>
 
-        <!-- Satelit & Cloud Run Banner -->
-        <rect x="25" y="15" width="125" height="22" rx="3" fill="rgba(10,22,40,0.8)" stroke="#00E5FF" stroke-width="1"/>
-        <text x="87" y="30" fill="#00E5FF" font-family="'JetBrains Mono', monospace" font-size="8" text-anchor="middle">GOOGLE CLOUD RUN // 3D MAPS</text>
+        <rect x="25" y="15" width="135" height="22" rx="3" fill="rgba(10,22,40,0.8)" stroke="#00E5FF" stroke-width="1"/>
+        <text x="92" y="30" fill="#00E5FF" font-family="'JetBrains Mono', monospace" font-size="8" text-anchor="middle">GOOGLE CLOUD RUN // 3D MAPS</text>
         
-        <text x="180" y="200" fill="#94A3B8" font-family="'JetBrains Mono', monospace" font-size="8.5" text-anchor="middle">MULTI-CCTV SYNCHRONIZATION VIA FIREBASE REALTIME</text>
+        <text x="180" y="202" fill="#94A3B8" font-family="'JetBrains Mono', monospace" font-size="8.5" text-anchor="middle">MULTI-CCTV SYNCHRONIZATION VIA FIREBASE REALTIME</text>
       </svg>`
     },
     {
       num: '04',
-      tag: 'FASE 4 // HARDWARE EDGE AI',
-      title: 'KACAMATA PINTAR & OTOMASI IOT',
-      current: 'Aplikasi web-based berjalan melalui antarmuka browser smartphone dan PC desktop.',
-      target: 'Pengembangan prototipe Kacamata Pintar Tunanetra (Bone-Conduction Audio, 100% hands-free) dan jembatan transmisi IoT ESP32 / Industrial PLC untuk menggerakkan servo aktuator pemilah sampah organik/anorganik dan lengan robotik sortir QC secara mekanis.',
+      tag: 'KONSEP IOT ESP32 // FASE 4',
+      title: 'KONSEP ESP32: AUTO-TRACKING & ACTIVE CCTV',
+      now: 'Kamera diam & alarm sirine browser.',
+      future: 'Koordinat objek menggerakkan Servo Pan-Tilt ESP32 (kamera pengejar target) serta Relay lampu sorot 100W & sirine 120dB.',
+      impact: '🛡️ CCTV Aktif Biaya Di Bawah Rp 150 Ribu',
+      narration: 'Fase empat, konsep integrasi ESP32 untuk menggerakkan kamera pengejar target otomatis serta menyalakan lampu sorot dan sirine fisik.',
       svg: `<svg viewBox="0 0 360 220" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect width="360" height="220" rx="10" fill="#020617"/>
         <path d="M20 30H340M20 70H340M20 110H340M20 150H340M20 190H340" stroke="rgba(0,229,255,0.06)" stroke-width="1"/>
-        
-        <!-- Ilustrasi Kacamata Pintar Futuristik (Smart Glasses HUD) -->
-        <g transform="translate(60, 40)">
-          <!-- Frame Kacamata -->
-          <path d="M20 40H80C90 40 100 48 110 65C120 48 130 40 140 40H200C215 40 225 50 220 75C215 100 195 105 175 105H145C130 105 120 85 110 85C100 85 90 105 75 105H45C25 105 5 100 0 75C-5 50 5 40 20 40Z" fill="rgba(0,229,255,0.08)" stroke="#00E5FF" stroke-width="2.5"/>
-          <!-- Lensa Kiri & Kanan HUD Lines -->
-          <rect x="25" y="55" width="60" height="35" rx="4" fill="rgba(0,230,118,0.15)" stroke="#00E676" stroke-width="1.2"/>
-          <rect x="135" y="55" width="60" height="35" rx="4" fill="rgba(0,230,118,0.15)" stroke="#00E676" stroke-width="1.2"/>
-          <line x1="35" y1="72" x2="75" y2="72" stroke="#00E676" stroke-width="1" stroke-dasharray="3 2"/>
-          <line x1="145" y1="72" x2="185" y2="72" stroke="#00E676" stroke-width="1" stroke-dasharray="3 2"/>
-          <!-- Bone Conduction Audio Nodes -->
-          <circle cx="5" cy="50" r="9" fill="#FFAB00"/>
-          <circle cx="215" cy="50" r="9" fill="#FFAB00"/>
-          <path d="M-8 42C-13 46 -13 54 -8 58M228 42C233 46 233 54 228 58" stroke="#FFAB00" stroke-width="1.8"/>
-          <text x="110" y="32" fill="#00E5FF" font-family="'JetBrains Mono', monospace" font-size="8.5" text-anchor="middle" font-weight="bold">BONE-CONDUCTION GLASSES</text>
+
+        <!-- Modul ESP32 Controller -->
+        <g transform="translate(35, 65)">
+          <rect x="0" y="0" width="85" height="100" rx="6" fill="#0A1628" stroke="#7C4DFF" stroke-width="2"/>
+          <rect x="15" y="10" width="55" height="40" rx="3" fill="#020617" stroke="#00E5FF" stroke-width="1.2"/>
+          <text x="42" y="34" fill="#00E5FF" font-family="'JetBrains Mono', monospace" font-size="9" text-anchor="middle" font-weight="bold">ESP32</text>
+          <text x="42" y="44" fill="#7C4DFF" font-family="'JetBrains Mono', monospace" font-size="6.5" text-anchor="middle">WI-FI/BLE</text>
+          <!-- Pin GPIO -->
+          <circle cx="15" cy="65" r="3" fill="#00E676"/>
+          <circle cx="15" cy="78" r="3" fill="#FFAB00"/>
+          <circle cx="15" cy="90" r="3" fill="#00E5FF"/>
+          <text x="48" y="70" fill="#00E676" font-family="'JetBrains Mono', monospace" font-size="6.5">GPIO 18: PAN</text>
+          <text x="48" y="82" fill="#FFAB00" font-family="'JetBrains Mono', monospace" font-size="6.5">GPIO 19: TILT</text>
+          <text x="48" y="93" fill="#00E5FF" font-family="'JetBrains Mono', monospace" font-size="6.5">GPIO 23: RELAY</text>
         </g>
 
-        <!-- Modul Mikrokontroler IoT ESP32 & Aktuator PLC -->
-        <g transform="translate(110, 145)">
-          <rect x="0" y="0" width="140" height="42" rx="5" fill="#0A1628" stroke="#7C4DFF" stroke-width="2"/>
-          <!-- Antena Wi-Fi / Bluetooth -->
-          <rect x="8" y="6" width="22" height="30" rx="2" fill="rgba(124,77,255,0.3)" stroke="#7C4DFF" stroke-width="1"/>
-          <!-- Chip ESP32 -->
-          <rect x="42" y="8" width="30" height="26" rx="2" fill="#020617" stroke="#00E5FF" stroke-width="1"/>
-          <text x="57" y="24" fill="#00E5FF" font-family="'JetBrains Mono', monospace" font-size="6" text-anchor="middle">ESP32</text>
-          <!-- Terminal Output Servo / PLC -->
-          <circle cx="95" cy="14" r="3" fill="#00E676"/>
-          <circle cx="110" cy="14" r="3" fill="#00E676"/>
-          <circle cx="125" cy="14" r="3" fill="#00E676"/>
-          <text x="110" y="32" fill="#FFAB00" font-family="'JetBrains Mono', monospace" font-size="7" text-anchor="middle">SERVO &amp; PLC RELAY</text>
+        <!-- Garis Bus Sinyal PWM Beranimasi -->
+        <path class="svg-pulse-line" d="M120 115H175M175 115V75H210M175 115V145H210" stroke="#00E676" stroke-width="2"/>
+
+        <!-- Servo Pan-Tilt Gimbal Kamera -->
+        <g transform="translate(210, 45)">
+          <rect x="0" y="0" width="120" height="58" rx="5" fill="#0A1628" stroke="#00E5FF" stroke-width="1.5"/>
+          <circle cx="35" cy="29" r="16" fill="#020617" stroke="#00E676" stroke-width="1.5"/>
+          <circle cx="35" cy="29" r="6" fill="#00E5FF"/>
+          <text x="75" y="25" fill="#00E5FF" font-family="'JetBrains Mono', monospace" font-size="8" font-weight="bold">SERVO PAN-TILT</text>
+          <text x="75" y="38" fill="#00E676" font-family="'JetBrains Mono', monospace" font-size="7">AUTO-TRACK 180°</text>
+          <!-- Sudut Pelacakan -->
+          <path d="M22 17A18 18 0 0 1 48 17" stroke="#FFAB00" stroke-width="1.5" stroke-dasharray="2 2"/>
         </g>
 
-        <!-- Garis Penghubung Sinyal Wireless -->
-        <path d="M180 135V145" stroke="#00E5FF" stroke-width="1.5" stroke-dasharray="2 2"/>
-        <text x="180" y="208" fill="#94A3B8" font-family="'JetBrains Mono', monospace" font-size="8.5" text-anchor="middle">100% HANDS-FREE WEARABLE &amp; PHYSICAL AUTOMATION</text>
+        <!-- Modul Relay Lampu Sorot & Sirine Fisik -->
+        <g transform="translate(210, 115)">
+          <rect x="0" y="0" width="120" height="58" rx="5" fill="#0A1628" stroke="#FF1744" stroke-width="1.5"/>
+          <rect x="12" y="14" width="26" height="30" rx="3" fill="#020617" stroke="#FF1744" stroke-width="1.2"/>
+          <text x="25" y="32" fill="#FF1744" font-family="'JetBrains Mono', monospace" font-size="7" text-anchor="middle">RELAY</text>
+          <text x="72" y="24" fill="#FFAB00" font-family="'JetBrains Mono', monospace" font-size="7.5" font-weight="bold">LAMPU 100W</text>
+          <text x="72" y="36" fill="#FF1744" font-family="'JetBrains Mono', monospace" font-size="7.5" font-weight="bold">SIRINE 120dB</text>
+          <text x="72" y="47" fill="#E2E8F0" font-family="'JetBrains Mono', monospace" font-size="6.5">AKTIF OTOMATIS</text>
+        </g>
+
+        <text x="180" y="198" fill="#FFAB00" font-family="'JetBrains Mono', monospace" font-size="8.5" text-anchor="middle">ESP32 LOW-COST HARDWARE // TARGET TRACKING MEKANIS</text>
       </svg>`
     },
     {
       num: '05',
-      tag: 'FASE 5 // INTEGRASI INSTANSI',
-      title: 'ENTERPRISE WHATSAPP & BIGQUERY',
-      current: 'Notifikasi instan via Telegram Bot API dan ekspor berkas data laporan CSV/Excel.',
-      target: 'Integrasi resmi WhatsApp Business Platform (API terverifikasi centang hijau), SMS Gateway broadcast darurat, dan agregasi log telemetri ke Google BigQuery & Looker Studio untuk dashboard analitik instansi pemerintah, kepolisian, & Smart Village.',
+      tag: 'KONSEP IOT ESP32 // FASE 5',
+      title: 'KONSEP ESP32: MESIN SORTIR & SENSOR FUSION',
+      now: 'Klasifikasi visual Sampah & QC UMKM di layar.',
+      future: 'Sinyal AI menggerakkan Servo Pemilah Otomatis + membaca Timbangan Load Cell HX711 langsung masuk ke Target Dossier.',
+      impact: '💰 Hemat 95% Biaya Mesin Sortir Pabrik',
+      narration: 'Fase lima, menghubungkan hasil AI Pilah Sampah dan QC UMKM ke servo pemilah otomatis dan timbangan digital berbasis ESP32.',
       svg: `<svg viewBox="0 0 360 220" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect width="360" height="220" rx="10" fill="#020617"/>
         <path d="M20 30H340M20 70H340M20 110H340M20 150H340M20 190H340" stroke="rgba(0,229,255,0.06)" stroke-width="1"/>
 
-        <!-- Grafik Batang Analitik BigQuery (Rising Bar Chart) -->
-        <g transform="translate(40, 60)">
-          <!-- Axis -->
-          <line x1="20" y1="100" x2="140" y2="100" stroke="#00E5FF" stroke-width="1.5"/>
-          <line x1="20" y1="100" x2="20" y2="10" stroke="#00E5FF" stroke-width="1.5"/>
-          <!-- Bars -->
-          <rect x="32" y="65" width="16" height="35" fill="rgba(0,229,255,0.4)" stroke="#00E5FF" stroke-width="1"/>
-          <rect x="58" y="45" width="16" height="55" fill="rgba(0,230,118,0.4)" stroke="#00E676" stroke-width="1"/>
-          <rect x="84" y="30" width="16" height="70" fill="rgba(255,171,0,0.4)" stroke="#FFAB00" stroke-width="1"/>
-          <rect x="110" y="15" width="16" height="85" fill="rgba(0,229,255,0.8)" stroke="#00E5FF" stroke-width="1.5"/>
-          <!-- Trend Curve Spline -->
-          <path d="M40 60C60 48 85 28 118 10" stroke="#00E676" stroke-width="2.2" stroke-linecap="round"/>
-          <circle cx="118" cy="10" r="3.5" fill="#00E676"/>
-          <text x="80" y="118" fill="#00E5FF" font-family="'JetBrains Mono', monospace" font-size="8" text-anchor="middle">BIGQUERY TELEMETRY</text>
-        </g>
-
-        <!-- Sinyal WhatsApp Business & Enterprise Gateway -->
-        <g transform="translate(200, 60)">
-          <!-- Silinder Database Google BigQuery -->
-          <ellipse cx="65" cy="22" rx="35" ry="12" fill="#0A1628" stroke="#00E5FF" stroke-width="1.8"/>
-          <path d="M30 22V55C30 62 45 67 65 67C85 67 100 62 100 55V22" fill="#0A1628" stroke="#00E5FF" stroke-width="1.8"/>
-          <ellipse cx="65" cy="38" rx="35" ry="10" stroke="rgba(0,229,255,0.3)" stroke-width="1"/>
-          <text x="65" y="50" fill="#00E5FF" font-family="'JetBrains Mono', monospace" font-size="8" text-anchor="middle" font-weight="bold">LOOKER STUDIO</text>
+        <!-- Corong Pemilah Sampah & QC Mekanis -->
+        <g transform="translate(30, 40)">
+          <!-- Chute Ramp -->
+          <polygon points="10,20 100,20 80,75 30,75" fill="rgba(0,229,255,0.12)" stroke="#00E5FF" stroke-width="1.8"/>
+          <!-- Objek Jatuh -->
+          <circle cx="55" cy="45" r="9" fill="#00E676"/>
+          <text x="55" y="48" fill="#020617" font-family="'JetBrains Mono', monospace" font-size="7" text-anchor="middle" font-weight="bold">AI</text>
           
-          <!-- Badge WhatsApp Enterprise -->
-          <rect x="15" y="80" width="100" height="28" rx="6" fill="#075E54" stroke="#25D366" stroke-width="1.5"/>
-          <circle cx="32" cy="94" r="8" fill="#25D366"/>
-          <!-- Ikon Telepon WhatsApp Sederhana -->
-          <path d="M29 91C29 95 33 98 36 97" stroke="#FFF" stroke-width="1.5" stroke-linecap="round"/>
-          <text x="70" y="98" fill="#FFF" font-family="'JetBrains Mono', monospace" font-size="8" font-weight="bold">WA BUSINESS</text>
+          <!-- Flap Servo Gate Pemilah -->
+          <line x1="55" y1="75" x2="40" y2="105" stroke="#FFAB00" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="55" cy="75" r="4" fill="#FFAB00"/>
+          
+          <!-- Bak Sortir 1 (Organik/Lolos QC) -->
+          <rect x="0" y="115" width="45" height="35" rx="3" fill="#0A1628" stroke="#00E676" stroke-width="1.5"/>
+          <text x="22" y="136" fill="#00E676" font-family="'JetBrains Mono', monospace" font-size="6.5" text-anchor="middle">ORGANIK</text>
+
+          <!-- Bak Sortir 2 (Anorganik/Reject QC) -->
+          <rect x="60" y="115" width="45" height="35" rx="3" fill="#0A1628" stroke="#FF1744" stroke-width="1.5"/>
+          <text x="82" y="136" fill="#FF1744" font-family="'JetBrains Mono', monospace" font-size="6.5" text-anchor="middle">ANORGANIK</text>
         </g>
 
-        <!-- Jalur Sinkronisasi Data Antar-Instansi -->
-        <path d="M165 105H195" stroke="#FFAB00" stroke-width="2" stroke-dasharray="3 3"/>
-        <text x="180" y="200" fill="#94A3B8" font-family="'JetBrains Mono', monospace" font-size="8.5" text-anchor="middle">OFFICIAL GOVERNMENT &amp; SMART CITY COMPLIANT</text>
+        <!-- Garis Data Pulsa Sensor Fusion -->
+        <path class="svg-pulse-line" d="M140 100H200" stroke="#00E676" stroke-width="2"/>
+
+        <!-- Timbangan Digital Load Cell HX711 -->
+        <g transform="translate(205, 55)">
+          <rect x="0" y="0" width="125" height="95" rx="6" fill="#0A1628" stroke="#00E5FF" stroke-width="1.8"/>
+          <!-- Layar Timbangan LCD Digital -->
+          <rect x="12" y="15" width="100" height="32" rx="3" fill="#020617" stroke="#00E676" stroke-width="1.2"/>
+          <text x="62" y="36" fill="#00E676" font-family="'JetBrains Mono', monospace" font-size="12" text-anchor="middle" font-weight="bold">248.5 g</text>
+          
+          <!-- Sensor Load Cell Bar -->
+          <rect x="25" y="58" width="75" height="14" rx="2" fill="rgba(0,229,255,0.2)" stroke="#00E5FF" stroke-width="1"/>
+          <text x="62" y="68" fill="#00E5FF" font-family="'JetBrains Mono', monospace" font-size="6.5" text-anchor="middle">HX711 LOAD CELL</text>
+          <text x="62" y="84" fill="#FFAB00" font-family="'JetBrains Mono', monospace" font-size="6.5" text-anchor="middle">FUSION KE DOSSIER</text>
+        </g>
+
+        <text x="180" y="198" fill="#00E5FF" font-family="'JetBrains Mono', monospace" font-size="8.5" text-anchor="middle">SENSOR FUSION // VISUAL AI + SERVO + BERAT HX711</text>
+      </svg>`
+    },
+    {
+      num: '06',
+      tag: 'KONSEP IOT ESP32 // FASE 6',
+      title: 'KONSEP ESP32: HAPTIC TUNANETRA & ESP-NOW MESH',
+      now: 'Panduan suara HP & notifikasi Telegram (butuh internet).',
+      future: 'Sabuk Getar Tunanetra (Bluetooth BLE + sensor ultrasonik anti-bising) & ESP-NOW Mesh untuk jaringan alarm desa tanpa internet.',
+      impact: '📡 Jalan di Area Blank Spot Tanpa Kuota',
+      narration: 'Fase enam, sabuk getar tunanetra anti bising dan jaringan alarm desa ESP-NOW yang tetap bekerja meski tanpa sinyal internet.',
+      svg: `<svg viewBox="0 0 360 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="360" height="220" rx="10" fill="#020617"/>
+        <path d="M20 30H340M20 70H340M20 110H340M20 150H340M20 190H340" stroke="rgba(0,229,255,0.06)" stroke-width="1"/>
+
+        <!-- Sabuk Getar Tunanetra (Haptic Belt) -->
+        <g transform="translate(30, 45)">
+          <rect x="0" y="15" width="125" height="42" rx="21" fill="#0A1628" stroke="#00E5FF" stroke-width="2"/>
+          <!-- Haptic Motor Kiri, Tengah, Kanan -->
+          <circle cx="28" cy="36" r="12" fill="#FFAB00"/>
+          <circle cx="62" cy="36" r="12" fill="#00E676"/>
+          <circle cx="97" cy="36" r="12" fill="#FFAB00"/>
+          <!-- Gelombang Getaran Haptic -->
+          <path d="M20 20C15 26 15 46 20 52M105 20C110 26 110 46 105 52" stroke="#FFAB00" stroke-width="1.8"/>
+          <text x="62" y="8" fill="#00E5FF" font-family="'JetBrains Mono', monospace" font-size="7.5" text-anchor="middle" font-weight="bold">SABUK HAPTIC TUNANETRA</text>
+          
+          <!-- Sensor Ultrasonik HC-SR04 -->
+          <rect x="25" y="72" width="75" height="30" rx="4" fill="#020617" stroke="#00E676" stroke-width="1.5"/>
+          <circle cx="45" cy="87" r="8" fill="#0A1628" stroke="#00E5FF" stroke-width="1.2"/>
+          <circle cx="80" cy="87" r="8" fill="#0A1628" stroke="#00E5FF" stroke-width="1.2"/>
+          <text x="62" y="116" fill="#00E676" font-family="'JetBrains Mono', monospace" font-size="6.5" text-anchor="middle">ULTRASONIC HC-SR04</text>
+        </g>
+
+        <!-- Garis Penghubung ESP-NOW Wireless -->
+        <path class="svg-pulse-line" d="M160 85H200" stroke="#FFAB00" stroke-width="2"/>
+
+        <!-- Jaringan Peer-to-Peer ESP-NOW Mesh (Tanpa Internet) -->
+        <g transform="translate(205, 45)">
+          <rect x="0" y="0" width="125" height="110" rx="6" fill="#0A1628" stroke="#7C4DFF" stroke-width="1.8"/>
+          <text x="62" y="20" fill="#7C4DFF" font-family="'JetBrains Mono', monospace" font-size="8" text-anchor="middle" font-weight="bold">ESP-NOW MESH</text>
+          
+          <!-- Node 1 (Gerbang Desa) -->
+          <circle cx="35" cy="45" r="10" fill="#020617" stroke="#00E676" stroke-width="1.5"/>
+          <text x="35" y="48" fill="#00E676" font-family="'JetBrains Mono', monospace" font-size="6" text-anchor="middle">N1</text>
+          
+          <!-- Node 2 (Pos Ronda) -->
+          <circle cx="90" cy="45" r="10" fill="#020617" stroke="#00E5FF" stroke-width="1.5"/>
+          <text x="90" y="48" fill="#00E5FF" font-family="'JetBrains Mono', monospace" font-size="6" text-anchor="middle">N2</text>
+          
+          <!-- Node 3 (Rumah Warga) -->
+          <circle cx="62" cy="85" r="10" fill="#020617" stroke="#FFAB00" stroke-width="1.5"/>
+          <text x="62" y="88" fill="#FFAB00" font-family="'JetBrains Mono', monospace" font-size="6" text-anchor="middle">N3</text>
+
+          <!-- Jalur Mesh P2P Antar-Node -->
+          <line x1="35" y1="45" x2="90" y2="45" stroke="#00E5FF" stroke-width="1.2" stroke-dasharray="2 2"/>
+          <line x1="35" y1="45" x2="62" y2="85" stroke="#00E676" stroke-width="1.2" stroke-dasharray="2 2"/>
+          <line x1="90" y1="45" x2="62" y2="85" stroke="#FFAB00" stroke-width="1.2" stroke-dasharray="2 2"/>
+          <text x="62" y="104" fill="#94A3B8" font-family="'JetBrains Mono', monospace" font-size="6" text-anchor="middle">0% KUOTA INTERNET</text>
+        </g>
+
+        <text x="180" y="198" fill="#00E676" font-family="'JetBrains Mono', monospace" font-size="8.5" text-anchor="middle">OFF-GRID BLANK SPOT ASSISTANCE // ESP-NOW PROTOCOL</text>
       </svg>`
     }
   ];
@@ -253,6 +327,7 @@
   // State Modul
   let currentSlideIndex = 0;
   let isPlaying = true;
+  let isNarrating = false;
   let autoPlayTimer = null;
   const SLIDE_DURATION_MS = 8000;
 
@@ -300,6 +375,7 @@
 
     const slideNumEl = document.getElementById('roadmapSlideNum');
     const phaseTagEl = document.getElementById('roadmapPhaseTag');
+    const impactBadgeEl = document.getElementById('roadmapImpactBadge');
     const titleEl = document.getElementById('roadmapSlideTitle');
     const currentTextEl = document.getElementById('roadmapCurrentText');
     const targetTextEl = document.getElementById('roadmapTargetText');
@@ -308,10 +384,16 @@
 
     if (slideNumEl) slideNumEl.textContent = slide.num;
     if (phaseTagEl) phaseTagEl.textContent = slide.tag;
+    if (impactBadgeEl) impactBadgeEl.textContent = slide.impact || '';
     if (titleEl) titleEl.textContent = slide.title;
-    if (currentTextEl) currentTextEl.textContent = slide.current;
-    if (targetTextEl) targetTextEl.textContent = slide.target;
+    if (currentTextEl) currentTextEl.textContent = slide.now || slide.current;
+    if (targetTextEl) targetTextEl.textContent = slide.future || slide.target;
     if (svgFrameEl) svgFrameEl.innerHTML = slide.svg;
+
+    // Bacakan Narasi Suara Juri jika mode narasi aktif
+    if (isNarrating && window.BenggalaVoice && typeof window.BenggalaVoice.speak === 'function') {
+      window.BenggalaVoice.speak(slide.narration);
+    }
 
     // Efek Transisi Fade-In Ringan (250ms)
     if (contentColEl) {
@@ -368,6 +450,10 @@
       if (overlay) {
         overlay.style.display = 'none';
         stopAutoPlay();
+        // Hentikan suara jika sedang bernarasi
+        if (window.BenggalaVoice && typeof window.BenggalaVoice.stop === 'function') {
+          window.BenggalaVoice.stop();
+        }
       }
     },
 
@@ -402,6 +488,87 @@
       } else {
         stopAutoPlay();
       }
+    },
+
+    /**
+     * Toggle Narasi Suara Juri
+     */
+    toggleNarration: function () {
+      isNarrating = !isNarrating;
+      const btnSpeak = document.getElementById('btnRoadmapSpeak');
+      if (btnSpeak) {
+        btnSpeak.innerHTML = isNarrating ? '🔊' : '🔇';
+        btnSpeak.title = isNarrating ? 'Matikan Narasi Juri' : 'Aktifkan Narasi Suara Juri';
+        btnSpeak.classList.toggle('active', isNarrating);
+      }
+
+      if (isNarrating) {
+        const slide = SLIDES[currentSlideIndex];
+        if (slide && window.BenggalaVoice && typeof window.BenggalaVoice.speak === 'function') {
+          window.BenggalaVoice.speak(slide.narration);
+        }
+      } else {
+        if (window.BenggalaVoice && typeof window.BenggalaVoice.stop === 'function') {
+          window.BenggalaVoice.stop();
+        }
+      }
+    },
+
+    /**
+     * Terminal Simulasi Sinyal ESP32 Real-Time dari Kamera
+     * @param {Array} predictions Daftar objek terdeteksi dari model.detect()
+     * @param {number} videoWidth Lebar frame kamera
+     */
+    updateLiveEspSim: function (predictions, videoWidth = 640) {
+      if (!this.isOpen()) return;
+      const simEl = document.getElementById('roadmapEspSim');
+      if (!simEl) return;
+
+      if (!predictions || predictions.length === 0) {
+        simEl.textContent = '[SIMULASI ESP32] >> STANDBY // MENUNGGU TARGET KAMERA...';
+        simEl.classList.remove('active');
+        return;
+      }
+
+      simEl.classList.add('active');
+      const primary = predictions[0];
+      const bbox = primary.bbox || [0, 0, 100, 100];
+      const [bx, by, bw, bh] = bbox;
+      const cx = bx + bw / 2;
+      const w = videoWidth || 640;
+
+      let pos = 'TENGAH';
+      let angle = '0';
+      if (cx < w * 0.35) {
+        pos = 'KIRI';
+        angle = '-25';
+      } else if (cx > w * 0.65) {
+        pos = 'KANAN';
+        angle = '+25';
+      }
+
+      const labelId = (typeof window.translateLabel === 'function')
+        ? window.translateLabel(primary.class)
+        : primary.class;
+
+      const labelLower = (labelId || '').toLowerCase();
+      const classLower = (primary.class || '').toLowerCase();
+
+      const isSortable = ['bottle', 'cup', 'wine glass', 'bowl', 'backpack', 'handbag', 'suitcase', 'box'].includes(classLower) ||
+                         labelLower.includes('botol') || labelLower.includes('gelas') || labelLower.includes('tas') || labelLower.includes('kotak');
+
+      const isPerson = classLower === 'person' || labelLower === 'orang';
+
+      let output = '';
+      if (isSortable) {
+        output = `[SIMULASI ESP32] >> SERVO_PILAH: ${labelId.toUpperCase()} | PAN: ${angle}°`;
+      } else if (isPerson) {
+        output = `[SIMULASI ESP32] >> TRACK_PAN: ${angle}° | HAPTIC_${pos} | RELAY: SIAGA`;
+      } else {
+        output = `[SIMULASI ESP32] >> TARGET: ${labelId.toUpperCase()} (${pos}) | PAN: ${angle}°`;
+      }
+
+      simEl.textContent = output;
     },
 
     /**
@@ -449,6 +616,13 @@
     if (btnRoadmapPause) {
       btnRoadmapPause.addEventListener('click', () => {
         BenggalaRoadmap.togglePlay();
+      });
+    }
+
+    const btnRoadmapSpeak = document.getElementById('btnRoadmapSpeak');
+    if (btnRoadmapSpeak) {
+      btnRoadmapSpeak.addEventListener('click', () => {
+        BenggalaRoadmap.toggleNarration();
       });
     }
 

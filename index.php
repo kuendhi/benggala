@@ -513,11 +513,12 @@ if (empty($_SESSION['csrf_token'])) {
             <div class="roadmap-slide-counter">
               <span class="counter-label">FASE</span>
               <span id="roadmapSlideNum" class="counter-val">01</span>
-              <span class="counter-total">/ 05</span>
+              <span class="counter-total">/ 06</span>
             </div>
             <div class="roadmap-controls">
               <button type="button" id="btnRoadmapPrev" class="roadmap-ctrl-btn" title="Fase Sebelumnya">◀</button>
               <button type="button" id="btnRoadmapPause" class="roadmap-ctrl-btn" title="Jeda/Lanjutkan Otomatis">⏸</button>
+              <button type="button" id="btnRoadmapSpeak" class="roadmap-ctrl-btn" title="Aktifkan Narasi Suara Juri">🔇</button>
               <button type="button" id="btnRoadmapNext" class="roadmap-ctrl-btn" title="Fase Berikutnya">▶</button>
               <button type="button" id="btnCloseRoadmap" class="roadmap-ctrl-btn roadmap-btn-close" title="Tutup Transmisi">✕</button>
             </div>
@@ -528,14 +529,17 @@ if (empty($_SESSION['csrf_token'])) {
         <div class="roadmap-body">
           <!-- Kolom Teks / Konten -->
           <div class="roadmap-content-col" id="roadmapContentCol">
-            <div class="roadmap-phase-tag" id="roadmapPhaseTag">FASE 1 // REAL-TIME CLOUD</div>
+            <div class="roadmap-meta-row">
+              <div class="roadmap-phase-tag" id="roadmapPhaseTag">CLOUD AI // FASE 1</div>
+              <span class="roadmap-impact-badge" id="roadmapImpactBadge">⚡ Respon Interaktif Tanpa Jeda</span>
+            </div>
             <h2 class="roadmap-slide-title" id="roadmapSlideTitle">GEMINI LIVE API (STREAMING 2 ARAH)</h2>
             
             <div class="roadmap-cards-grid">
-              <!-- Kotak Saat Ini -->
+              <!-- Kotak Hari Ini -->
               <div class="roadmap-card card-current">
                 <div class="card-header">
-                  <span class="card-badge badge-current">⚡ SAAT INI (KONDISI EKSISTING)</span>
+                  <span class="card-badge badge-current">⚡ HARI INI (KONDISI EKSISTING)</span>
                 </div>
                 <div class="card-body">
                   <p id="roadmapCurrentText">Auto-Lock 4 detik (hemat kuota gratis).</p>
@@ -545,7 +549,7 @@ if (empty($_SESSION['csrf_token'])) {
               <!-- Kotak Dengan Pendanaan -->
               <div class="roadmap-card card-target">
                 <div class="card-header">
-                  <span class="card-badge badge-target">🚀 DENGAN PENDANAAN // GOOGLE TECH</span>
+                  <span class="card-badge badge-target">🚀 DENGAN PENDANAAN // UPGRADE TARGET</span>
                 </div>
                 <div class="card-body">
                   <p id="roadmapTargetText">Upgrade ke Google Gemini Multimodal Live API (WebSockets)...</p>
@@ -562,6 +566,12 @@ if (empty($_SESSION['csrf_token'])) {
           </div>
         </div>
 
+        <!-- Terminal Simulasi Sinyal ESP32 Real-Time (Task 13B) -->
+        <div class="roadmap-espsim-bar">
+          <span class="espsim-badge">⚡ ESP32 SIM</span>
+          <span id="roadmapEspSim" class="espsim-text">[SIMULASI ESP32] &gt;&gt; STANDBY // MENUNGGU TARGET KAMERA...</span>
+        </div>
+
         <!-- Bottom Breaking News Ticker Bar -->
         <div class="roadmap-ticker-bar">
           <div class="ticker-badge">
@@ -570,7 +580,7 @@ if (empty($_SESSION['csrf_token'])) {
           </div>
           <div class="ticker-marquee-wrapper">
             <div class="ticker-marquee-content" id="roadmapTickerText">
-              [FASE 1] GOOGLE GEMINI LIVE API AKAN HADIRKAN SUARA 2 ARAH REAL-TIME STREAMING UNTUK TUNANETRA • [FASE 2] MODEL CUSTOM SPESIFIK INDONESIA DILATIH VIA GOOGLE CLOUD VERTEX AI UNTUK PERTANIAN &amp; QC UMKM • [FASE 3] COMMAND CENTER SKALA KOTA MENGGUNAKAN GOOGLE CLOUD RUN, FIREBASE &amp; GOOGLE MAPS 3D PHOTOREALISTIC TILES • [FASE 4] HARDWARE KACAMATA PINTAR HANDS-FREE DENGAN BONE CONDUCTION &amp; INTEGRASI OTOMASI IOT ESP32/PLC • [FASE 5] INTEGRASI WHATSAPP BUSINESS API, SMS GATEWAY DARURAT &amp; DASHBOARD ANALITIK GOOGLE BIGQUERY / LOOKER STUDIO • BENGGALA OS: MENUJU REVOLUSI VISION AI MERAKYAT 2027
+              [FASE 1] GOOGLE GEMINI LIVE API HADIRKAN SUARA 2 ARAH REAL-TIME STREAMING • [FASE 2] MODEL CUSTOM SPESIFIK INDONESIA DILATIH VIA GOOGLE CLOUD VERTEX AI • [FASE 3] COMMAND CENTER SKALA KOTA VIA GOOGLE CLOUD RUN, FIREBASE &amp; GOOGLE MAPS 3D • [FASE 4] KONSEP ESP32: KAMERA AUTO-TRACKING PAN-TILT &amp; RELAY LAMPU/SIRINE FISIK • [FASE 5] KONSEP ESP32: MESIN SORTIR FISIK &amp; SENSOR FUSION LOAD CELL HX711 • [FASE 6] KONSEP ESP32: SABUK HAPTIC TUNANETRA &amp; JARINGAN ALARM DESA ESP-NOW MESH TANPA INTERNET • BENGGALA OS: VISION AI MERAKYAT 2027
             </div>
           </div>
         </div>

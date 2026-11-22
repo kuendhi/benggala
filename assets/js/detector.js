@@ -441,6 +441,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
           }
 
+          // Update Simulasi Sinyal ESP32 jika Overlay Visi 2027 sedang terbuka (Task 13B)
+          if (window.BenggalaRoadmap && typeof window.BenggalaRoadmap.updateLiveEspSim === 'function' && window.BenggalaRoadmap.isOpen()) {
+            window.BenggalaRoadmap.updateLiveEspSim(filtered, video.videoWidth || 640);
+          }
+
           // Pengecekan Otomatis Mode CCTV Pintar
           if (window.BenggalaCCTV && window.BenggalaCCTV.isActive && filtered.length > 0) {
             const translatedForCCTV = filtered.map(p => ({
