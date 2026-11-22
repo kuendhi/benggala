@@ -1,12 +1,14 @@
 <?php
 /**
- * Benggala API - Save Snapshot
- * Menerima snapshot webcam (Base64 JPEG/PNG) dan menyimpannya secara aman
+ * Benggala API - Save Snapshot & CCTV Evidence
+ * Menerima snapshot webcam (Base64 JPEG/PNG), mencatat ke MySQL, dan mengirim ke Telegram
  */
 
 declare(strict_types=1);
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'security.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'db.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'telegram.php';
 
 // Wajibkan POST dan validasi header X-CSRF-Token
 $env = verifyRequest(true);
@@ -17,6 +19,9 @@ $input = json_decode($rawInput, true);
 if (!is_array($input)) {
     $input = $_POST;
 }
+
+$isCctv = !empty($input['is_cctv']);
+$objects = $input['objects'] ?? [];
 
 $imageData = trim((string)($input['image'] ?? ''));
 if ($imageData === '') {
@@ -30,7 +35,7 @@ if ($imageData === '') {
 
 // Ekstrak base64 data jika menggunakan data URI scheme
 if (preg_match('/^data:image\/(\w+);base64,/', $imageData, $type)) {
-    $imageType = strtolower($type[1]); // jpg, jpeg, png, webp
+    $imageType = strtolower($type[1]);
     $imageData = substr($imageData, strpos($imageData, ',') + 1);
     $imageData = base64_decode($imageData);
 
@@ -76,7 +81,6 @@ if ($imageInfo === false) {
     exit;
 }
 
-// Tentukan ekstensi yang aman
 $allowedExtensions = [
     'image/jpeg' => 'jpg',
     'image/png'  => 'png',
@@ -105,9 +109,76 @@ if (@file_put_contents($targetPath, $imageData, LOCK_EX) === false) {
     exit;
 }
 
+// -----------------------------------------------------------------------------
+// PENGIRIMAN NOTIFIKASI TELEGRAM & PENCATATAN KE DATABASE
+// -----------------------------------------------------------------------------
+$telegramSent = false;
+
+try {
+    $pdo = getDbConnection();
+    $settings = getAppSettings();
+
+    // 1. Cek konfigurasi Telegram jika request berasal dari Mode CCTV
+    $tgEnabled = ($settings['telegram_enabled'] ?? '0') === '1';
+    $tgToken   = trim((string)($settings['telegram_bot_token'] ?? ''));
+    $tgChatId  = trim((string)($settings['telegram_chat_id'] ?? ''));
+
+    if ($isCctv && $tgEnabled && $tgToken !== '' && $tgChatId !== '') {
+        $timeStr = date('d/m/Y H:i:s');
+        $objectNamesList = [];
+
+        if (is_array($objects)) {
+            foreach ($objects as $obj) {
+                if (is_array($obj)) {
+                    $name = $obj['name'] ?? $obj['class'] ?? $obj['name_id'] ?? '';
+                    $size = !empty($obj['ukuran']) ? " [{$obj['ukuran']}]" : '';
+                    if ($name !== '') {
+                        $objectNamesList[] = "• {$name}{$size}";
+                    }
+                } elseif (is_string($obj) && trim($obj) !== '') {
+                    $objectNamesList[] = "• " . trim($obj);
+                }
+            }
+        }
+
+        $objSummary = !empty($objectNamesList) ? implode("\n", $objectNamesList) : "• Objek terdeteksi";
+
+        $caption = "🚨 *PERINGATAN CCTV BENGGALA!*\n"
+                 . "📅 *Waktu:* {$timeStr}\n"
+                 . "🎯 *Objek Terdeteksi:*\n{$objSummary}\n"
+                 . "📁 *Berkas:* `{$filename}`";
+
+        $telegramSent = sendTelegramPhoto($tgToken, $tgChatId, $targetPath, $caption);
+    }
+
+    // 2. Simpan Riwayat Deteksi ke Tabel detection_logs
+    $objectsJson = is_array($objects) ? json_encode($objects, JSON_UNESCAPED_UNICODE) : (string)$objects;
+    $objectCount = is_array($objects) ? count($objects) : 0;
+
+    $stmt = $pdo->prepare("
+        INSERT INTO detection_logs (filename, file_path, detected_objects, object_count, is_cctv, telegram_sent) 
+        VALUES (:fn, :fp, :objs, :cnt, :cctv, :tg)
+    ");
+
+    $stmt->execute([
+        ':fn' => $filename,
+        ':fp' => 'uploads/snapshots/' . $filename,
+        ':objs' => $objectsJson,
+        ':cnt' => $objectCount,
+        ':cctv' => $isCctv ? 1 : 0,
+        ':tg' => $telegramSent ? 1 : 0
+    ]);
+
+} catch (Throwable $dbErr) {
+    // Database / Telegram error tidak menggagalkan penyimpanan lokal
+    error_log("Database/Telegram error in save_snapshot: " . $dbErr->getMessage());
+}
+
 echo json_encode([
     'status' => 'success',
     'message' => 'Snapshot berhasil disimpan',
     'filename' => $filename,
-    'path' => 'uploads/snapshots/' . $filename
+    'path' => 'uploads/snapshots/' . $filename,
+    'is_cctv' => $isCctv,
+    'telegram_sent' => $telegramSent
 ]);

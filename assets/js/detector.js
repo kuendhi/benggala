@@ -319,7 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             window.BenggalaCCTV.checkDetections(translatedForCCTV, (matchedTarget) => {
               showToast(`🚨 CCTV: Target [${matchedTarget}] terdeteksi! Mengambil snapshot bukti...`, 'error');
-              handleSaveSnapshot();
+              handleSaveSnapshot(true);
             });
           }
         } catch (err) {
@@ -521,7 +521,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // =========================================================================
   // 7. Pengiriman Snapshot ke Backend API (api/save_snapshot.php)
   // =========================================================================
-  async function handleSaveSnapshot() {
+  async function handleSaveSnapshot(isCctv = false) {
     if (!isStreaming) {
       showToast('Kamera belum aktif.', 'error');
       return;
@@ -556,7 +556,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnSnapshot.disabled = true;
     const originalText = btnSnapshot.innerHTML;
-    btnSnapshot.innerHTML = '⏳ Menyimpan...';
+    btnSnapshot.innerHTML = isCctv ? '📸 CCTV Mengambil...' : '⏳ Menyimpan...';
 
     try {
       const response = await fetch('api/save_snapshot.php', {
@@ -568,14 +568,19 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         body: JSON.stringify({
           image: base64Image,
-          objects: objectsList
+          objects: objectsList,
+          is_cctv: isCctv
         })
       });
 
       const result = await response.json();
 
       if (response.ok && result.status === 'success') {
-        showToast(`Snapshot berhasil disimpan (${result.filename})`, 'success');
+        let msg = `Snapshot berhasil disimpan (${result.filename})`;
+        if (result.telegram_sent) {
+          msg += ' ✈️ Foto terkirim ke Telegram!';
+        }
+        showToast(msg, 'success');
       } else {
         showToast(result.message || 'Gagal menyimpan snapshot.', 'error');
       }
@@ -825,6 +830,127 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
   }
+
+  // =========================================================================
+  // 11. Modal Pengaturan & Notifikasi Telegram
+  // =========================================================================
+  const settingsModal = document.getElementById('settingsModal');
+  const btnOpenSettings = document.getElementById('btnOpenSettings');
+  const btnCloseSettings = document.getElementById('btnCloseSettings');
+  const btnCancelSettings = document.getElementById('btnCancelSettings');
+  const btnSaveSettings = document.getElementById('btnSaveSettings');
+
+  const setLlmProvider = document.getElementById('setLlmProvider');
+  const setDeepSeekKey = document.getElementById('setDeepSeekKey');
+  const setGeminiKey = document.getElementById('setGeminiKey');
+  const setTelegramEnabled = document.getElementById('setTelegramEnabled');
+  const setTelegramToken = document.getElementById('setTelegramToken');
+  const setTelegramChatId = document.getElementById('setTelegramChatId');
+
+  async function loadSettings() {
+    try {
+      const res = await fetch('api/settings.php?action=get');
+      const json = await res.json();
+      if (json.status === 'success' && json.data) {
+        const d = json.data;
+        if (setLlmProvider && d.llm_default_provider) {
+          setLlmProvider.value = d.llm_default_provider;
+        }
+        if (setDeepSeekKey && d.deepseek_api_key) {
+          setDeepSeekKey.value = d.deepseek_api_key;
+        }
+        if (setGeminiKey && d.gemini_api_key) {
+          setGeminiKey.value = d.gemini_api_key;
+        }
+        if (setTelegramEnabled) {
+          setTelegramEnabled.checked = (d.telegram_enabled === '1');
+        }
+        if (setTelegramToken && d.telegram_bot_token) {
+          setTelegramToken.value = d.telegram_bot_token;
+        }
+        if (setTelegramChatId && d.telegram_chat_id) {
+          setTelegramChatId.value = d.telegram_chat_id;
+        }
+      }
+    } catch (e) {
+      console.warn('Gagal memuat pengaturan database:', e);
+    }
+  }
+
+  async function saveSettings() {
+    if (!btnSaveSettings) return;
+
+    const csrfToken = getCsrfToken();
+    btnSaveSettings.disabled = true;
+    const oldText = btnSaveSettings.innerHTML;
+    btnSaveSettings.innerHTML = '⏳ Menyimpan...';
+
+    const payload = {
+      action: 'save',
+      settings: {
+        llm_default_provider: setLlmProvider ? setLlmProvider.value : 'deepseek',
+        deepseek_api_key: setDeepSeekKey ? setDeepSeekKey.value : '',
+        gemini_api_key: setGeminiKey ? setGeminiKey.value : '',
+        telegram_enabled: setTelegramEnabled && setTelegramEnabled.checked ? '1' : '0',
+        telegram_bot_token: setTelegramToken ? setTelegramToken.value : '',
+        telegram_chat_id: setTelegramChatId ? setTelegramChatId.value : ''
+      }
+    };
+
+    try {
+      const res = await fetch('api/settings.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-Token': csrfToken
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const json = await res.json();
+
+      if (res.ok && json.status === 'success') {
+        showToast('Pengaturan sistem & Telegram berhasil disimpan!', 'success');
+        if (settingsModal) settingsModal.style.display = 'none';
+        loadSettings();
+      } else {
+        showToast(json.message || 'Gagal menyimpan pengaturan.', 'error');
+      }
+    } catch (err) {
+      console.error('Error saat menyimpan pengaturan:', err);
+      showToast('Koneksi ke api/settings.php gagal.', 'error');
+    } finally {
+      btnSaveSettings.disabled = false;
+      btnSaveSettings.innerHTML = oldText;
+    }
+  }
+
+  if (btnOpenSettings) {
+    btnOpenSettings.addEventListener('click', () => {
+      loadSettings();
+      if (settingsModal) settingsModal.style.display = 'flex';
+    });
+  }
+
+  if (btnCloseSettings) {
+    btnCloseSettings.addEventListener('click', () => {
+      if (settingsModal) settingsModal.style.display = 'none';
+    });
+  }
+
+  if (btnCancelSettings) {
+    btnCancelSettings.addEventListener('click', () => {
+      if (settingsModal) settingsModal.style.display = 'none';
+    });
+  }
+
+  if (btnSaveSettings) {
+    btnSaveSettings.addEventListener('click', saveSettings);
+  }
+
+  // Muat pengaturan awal dari database
+  loadSettings();
 
   // Muat model saat halaman pertama kali dibuka
   loadModel();

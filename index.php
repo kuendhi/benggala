@@ -29,7 +29,10 @@ if (empty($_SESSION['csrf_token'])) {
         <h1 class="app-title">
           <span class="title-icon">👁️</span> Benggala AI Object Detection
         </h1>
-        <div class="status-wrapper">
+        <div class="status-wrapper" style="display: flex; align-items: center; gap: 0.75rem;">
+          <button type="button" id="btnOpenSettings" class="btn btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.85rem;" title="Buka Pengaturan Sistem">
+            ⚙️ Pengaturan
+          </button>
           <span id="modelStatus" class="status-badge loading">
             <span class="status-dot"></span> Memuat Model AI...
           </span>
@@ -208,6 +211,62 @@ if (empty($_SESSION['csrf_token'])) {
         </div>
       </aside>
     </main>
+  </div>
+
+  <!-- Modal ⚙️ Pengaturan -->
+  <div id="settingsModal" class="modal-overlay" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">⚙️ Pengaturan Sistem</h3>
+        <button type="button" id="btnCloseSettings" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Pengaturan LLM -->
+        <div class="settings-section">
+          <h4 class="section-title">Konfigurasi AI & LLM</h4>
+          <div class="form-group">
+            <label for="setLlmProvider">Provider Default</label>
+            <select id="setLlmProvider" class="form-select">
+              <option value="deepseek">DeepSeek</option>
+              <option value="gemini">Google Gemini</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="setDeepSeekKey">DeepSeek API Key</label>
+            <input type="password" id="setDeepSeekKey" class="form-input" placeholder="Masukkan DeepSeek API Key">
+          </div>
+          <div class="form-group">
+            <label for="setGeminiKey">Gemini API Key</label>
+            <input type="password" id="setGeminiKey" class="form-input" placeholder="Masukkan Gemini API Key">
+          </div>
+        </div>
+
+        <div class="action-divider"></div>
+
+        <!-- Notifikasi Telegram (CCTV) -->
+        <div class="settings-section">
+          <h4 class="section-title">Notifikasi Telegram (CCTV)</h4>
+          <div class="form-group checkbox-group">
+            <label class="checkbox-container">
+              <input type="checkbox" id="setTelegramEnabled">
+              <span class="checkbox-label" style="font-weight: 600; color: var(--text-main);">Aktifkan Notifikasi Telegram</span>
+            </label>
+          </div>
+          <div class="form-group">
+            <label for="setTelegramToken">Telegram Bot Token</label>
+            <input type="password" id="setTelegramToken" class="form-input" placeholder="Contoh: 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ">
+          </div>
+          <div class="form-group">
+            <label for="setTelegramChatId">Telegram Chat ID</label>
+            <input type="text" id="setTelegramChatId" class="form-input" placeholder="Contoh: 987654321">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btnCancelSettings" class="btn btn-secondary">Batal</button>
+        <button type="button" id="btnSaveSettings" class="btn btn-primary">💾 Simpan Pengaturan</button>
+      </div>
+    </div>
   </div>
 
   <!-- Toast Notification Container -->
