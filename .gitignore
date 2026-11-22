@@ -5,3 +5,16 @@ uploads/snapshots/*.log
 uploads/snapshots/*.json
 .DS_Store
 Thumbs.db
+
+# Python / Flask
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+instance/
+.pytest_cache/
