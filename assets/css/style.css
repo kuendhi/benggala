@@ -292,7 +292,7 @@ html, body {
 }
 
 .camera-stage.active-stream {
-  box-shadow: inset 0 0 60px rgba(0, 229, 255, 0.08);
+  box-shadow: none; /* Bersih tanpa bayangan/halo biru inset pada frame kamera */
 }
 
 #webcam {
@@ -301,8 +301,8 @@ html, body {
   max-height: 100%;
   object-fit: contain;
   display: block;
-  /* Visual Monitor Utama: Layar Cerah Alami, Bayangan Tidak Hancur, Warna Hidup */
-  filter: brightness(1.22) contrast(1.02) saturate(1.08);
+  /* Visual Monitor Utama: Bersih, Netral, Cerah Alami Tanpa Tint/Bias Warna Biru */
+  filter: brightness(1.20) contrast(1.02);
   image-rendering: -webkit-optimize-contrast;
   image-rendering: crisp-edges;
   transform: translateZ(0);

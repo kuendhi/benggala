@@ -324,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      // Optimasi kapabilitas hardware kamera (auto-focus, continuous white-balance) jika didukung
+      // Optimasi kapabilitas hardware kamera (auto-focus saja, hindari white balance lock agar warna netral alami)
       try {
         const track = stream.getVideoTracks()[0];
         if (track && typeof track.getCapabilities === 'function') {
@@ -332,9 +332,6 @@ document.addEventListener('DOMContentLoaded', () => {
           const advanced = {};
           if (caps.focusMode && caps.focusMode.includes('continuous')) {
             advanced.focusMode = 'continuous';
-          }
-          if (caps.whiteBalanceMode && caps.whiteBalanceMode.includes('continuous')) {
-            advanced.whiteBalanceMode = 'continuous';
           }
           if (Object.keys(advanced).length > 0 && typeof track.applyConstraints === 'function') {
             await track.applyConstraints({ advanced: [advanced] }).catch(() => {});
@@ -354,6 +351,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       isStreaming = true;
       cameraPlaceholder.style.display = 'none';
+
+      // Sembunyikan starfield latar saat kamera aktif agar tidak ada bias/gradasi biru di area sekitar kamera
+      const viewportStars = document.getElementById('viewportStars');
+      if (viewportStars) {
+        viewportStars.style.display = 'none';
+      }
 
       // Aktifkan glow ambient stage monitor
       const cameraStage = document.getElementById('cameraStage');
@@ -427,6 +430,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const cameraStage = document.getElementById('cameraStage');
     if (cameraStage) {
       cameraStage.classList.remove('active-stream');
+    }
+
+    const viewportStars = document.getElementById('viewportStars');
+    if (viewportStars) {
+      viewportStars.style.display = 'block';
     }
 
     resetCameraFocus();
@@ -1358,12 +1366,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnBrightnessBoost = document.getElementById('btnBrightnessBoost');
 
   function applySavedBrightness() {
-    const saved = localStorage.getItem('benggala_cam_brightness') || '125';
+    const saved = localStorage.getItem('benggala_cam_brightness') || '120';
     if (cameraBrightnessSlider) cameraBrightnessSlider.value = saved;
     if (cameraBrightnessVal) cameraBrightnessVal.textContent = `${saved}%`;
     if (video) {
       const brightRatio = parseFloat(saved) / 100;
-      video.style.filter = `brightness(${brightRatio}) contrast(1.02) saturate(1.08)`;
+      video.style.filter = `brightness(${brightRatio}) contrast(1.02)`;
     }
   }
 
@@ -1373,7 +1381,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (cameraBrightnessVal) cameraBrightnessVal.textContent = `${val}%`;
       const brightRatio = parseFloat(val) / 100;
       if (video) {
-        video.style.filter = `brightness(${brightRatio}) contrast(1.02) saturate(1.08)`;
+        video.style.filter = `brightness(${brightRatio}) contrast(1.02)`;
       }
       localStorage.setItem('benggala_cam_brightness', val);
     });
@@ -1382,7 +1390,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Tombol Cepat Kecerahan Layar (110% -> 125% -> 145%)
   if (btnBrightnessBoost) {
     btnBrightnessBoost.addEventListener('click', () => {
-      const current = parseInt(localStorage.getItem('benggala_cam_brightness') || '125', 10);
+      const current = parseInt(localStorage.getItem('benggala_cam_brightness') || '120', 10);
       let next = 125;
       if (current < 125) {
         next = 125;
@@ -1394,7 +1402,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (cameraBrightnessSlider) cameraBrightnessSlider.value = next;
       if (cameraBrightnessVal) cameraBrightnessVal.textContent = `${next}%`;
       if (video) {
-        video.style.filter = `brightness(${next / 100}) contrast(1.02) saturate(1.08)`;
+        video.style.filter = `brightness(${next / 100}) contrast(1.02)`;
       }
       localStorage.setItem('benggala_cam_brightness', next.toString());
       showToast(`☀️ Kecerahan Layar: ${next}%`, 'info');
