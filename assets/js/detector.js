@@ -34,6 +34,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const llmAnalysisContent = document.getElementById('llmAnalysisContent');
   const toastContainer = document.getElementById('toastContainer');
 
+  const refWidthCm = document.getElementById('refWidthCm');
+  const btnCalibrate = document.getElementById('btnCalibrate');
+  const btnResetCalibrate = document.getElementById('btnResetCalibrate');
+  const calibrationStatus = document.getElementById('calibrationStatus');
+
   // --- State Variables ---
   let model = null;
   let stream = null;
@@ -43,6 +48,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentFacingMode = 'user'; // 'user' (depan/webcam) atau 'environment' (belakang di HP)
   let minConfidence = parseFloat(thresholdSlider.value) / 100;
   let currentPredictions = [];
+  let lastPredictions = [];
+  let pixelsPerCm = parseFloat(localStorage.getItem('benggala_px_per_cm')) || null;
 
   // Palet warna kontras untuk bounding box per class
   const classColors = [
@@ -95,6 +102,18 @@ document.addEventListener('DOMContentLoaded', () => {
   function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
     return meta ? meta.getAttribute('content') : '';
+  }
+
+  // Helper untuk memperbarui tampilan status kalibrasi piksel ke cm
+  function updateCalibrationUI() {
+    if (!calibrationStatus) return;
+    if (pixelsPerCm && pixelsPerCm > 0) {
+      calibrationStatus.textContent = `Terkalibrasi (1 cm ≈ ${pixelsPerCm.toFixed(1)} px)`;
+      calibrationStatus.classList.add('calibrated');
+    } else {
+      calibrationStatus.textContent = 'Belum dikalibrasi (mode piksel)';
+      calibrationStatus.classList.remove('calibrated');
+    }
   }
 
   // =========================================================================
@@ -269,6 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const predictions = await model.detect(video);
           const filtered = predictions.filter(pred => pred.score >= minConfidence);
           currentPredictions = filtered;
+          lastPredictions = filtered;
 
           renderPredictions(filtered);
           updateLiveStats(filtered);
@@ -306,7 +326,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const [x, y, width, height] = prediction.bbox;
       const color = getColorForClass(prediction.class);
       const translatedName = typeof window.translateLabel === 'function' ? window.translateLabel(prediction.class) : prediction.class;
-      const labelText = `${translatedName} ${prediction.score.toFixed(2)}`;
+      const scorePercent = Math.round(prediction.score * 100);
+
+      let labelText = `${translatedName} ${prediction.score.toFixed(2)}`;
+      if (pixelsPerCm && pixelsPerCm > 0) {
+        const wCm = (width / pixelsPerCm).toFixed(1);
+        const hCm = (height / pixelsPerCm).toFixed(1);
+        labelText = `${translatedName} ${scorePercent}% (${wCm}×${hCm} cm)`;
+      }
 
       // Bounding Box
       ctx.strokeStyle = color;
@@ -354,11 +381,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const grouped = {};
     predictions.forEach(p => {
       if (!grouped[p.class]) {
-        grouped[p.class] = { count: 0, maxScore: 0 };
+        grouped[p.class] = { count: 0, maxScore: 0, bbox: p.bbox };
       }
       grouped[p.class].count += 1;
       if (p.score > grouped[p.class].maxScore) {
         grouped[p.class].maxScore = p.score;
+        grouped[p.class].bbox = p.bbox;
       }
     });
 
@@ -371,11 +399,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const color = getColorForClass(className);
       const translatedName = typeof window.translateLabel === 'function' ? window.translateLabel(className) : className;
 
+      let dimensionTag = '';
+      if (pixelsPerCm && pixelsPerCm > 0 && data.bbox) {
+        const wCm = (data.bbox[2] / pixelsPerCm).toFixed(1);
+        const hCm = (data.bbox[3] / pixelsPerCm).toFixed(1);
+        dimensionTag = `<span class="item-dimension">${wCm}×${hCm} cm</span>`;
+      }
+
       html += `
         <div class="detection-item" style="border-left-color: ${color}">
           <div class="item-left">
             <span class="item-name">${translatedName}</span>
             <span class="item-count-badge">x${data.count}</span>
+            ${dimensionTag}
           </div>
           <div class="item-right">
             <span class="item-score">${percent}%</span>
@@ -474,10 +510,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Persiapkan data objek terdeteksi
-    const objectsList = currentPredictions.map(p => ({
-      class: p.class,
-      score: p.score
-    }));
+    const objectsList = currentPredictions.map(p => {
+      const objItem = {
+        class: p.class,
+        name_id: typeof window.translateLabel === 'function' ? window.translateLabel(p.class) : p.class,
+        score: p.score
+      };
+      if (pixelsPerCm && pixelsPerCm > 0) {
+        const wCm = (p.bbox[2] / pixelsPerCm).toFixed(1);
+        const hCm = (p.bbox[3] / pixelsPerCm).toFixed(1);
+        objItem.ukuran = `${wCm}x${hCm} cm`;
+      }
+      return objItem;
+    });
 
     btnSnapshot.disabled = true;
     const originalText = btnSnapshot.innerHTML;
@@ -532,12 +577,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const csrfToken = getCsrfToken();
     const provider = llmProviderSelect ? llmProviderSelect.value : 'deepseek';
 
-    // Format objek untuk dikirim ke LLM (menggunakan terjemahan Bahasa Indonesia)
-    const detectedObjects = currentPredictions.map(p => ({
-      name: typeof window.translateLabel === 'function' ? window.translateLabel(p.class) : p.class,
-      class_en: p.class,
-      score: p.score
-    }));
+    // Format objek untuk dikirim ke LLM (menggunakan terjemahan Bahasa Indonesia dan perkiraan ukuran cm)
+    const detectedObjects = currentPredictions.map(p => {
+      const objItem = {
+        name: typeof window.translateLabel === 'function' ? window.translateLabel(p.class) : p.class,
+        class_en: p.class,
+        score: p.score
+      };
+      if (pixelsPerCm && pixelsPerCm > 0) {
+        const wCm = (p.bbox[2] / pixelsPerCm).toFixed(1);
+        const hCm = (p.bbox[3] / pixelsPerCm).toFixed(1);
+        objItem.ukuran = `${wCm}x${hCm} cm`;
+      }
+      return objItem;
+    });
 
     btnAnalyzeLLM.disabled = true;
     const originalText = btnAnalyzeLLM.innerHTML;
@@ -631,6 +684,51 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnAnalyzeLLM) {
     btnAnalyzeLLM.addEventListener('click', handleAnalyzeLLM);
   }
+
+  // Event Kalibrasi Ukuran Real-Time (cm)
+  if (btnCalibrate) {
+    btnCalibrate.addEventListener('click', () => {
+      if (!lastPredictions || lastPredictions.length === 0) {
+        showToast('Arahkan kamera ke 1 benda referensi terlebih dahulu', 'error');
+        return;
+      }
+
+      const refWidthInput = parseFloat(refWidthCm ? refWidthCm.value : 8.56);
+      if (isNaN(refWidthInput) || refWidthInput <= 0) {
+        showToast('Masukkan lebar referensi yang valid (cm)', 'error');
+        return;
+      }
+
+      // Ambil objek dengan akurasi tertinggi dari lastPredictions
+      let bestObj = lastPredictions[0];
+      for (let i = 1; i < lastPredictions.length; i++) {
+        if (lastPredictions[i].score > bestObj.score) {
+          bestObj = lastPredictions[i];
+        }
+      }
+
+      const bboxWidth = bestObj.bbox[2];
+      pixelsPerCm = bboxWidth / refWidthInput;
+      localStorage.setItem('benggala_px_per_cm', pixelsPerCm.toString());
+
+      updateCalibrationUI();
+      const objName = typeof window.translateLabel === 'function' ? window.translateLabel(bestObj.class) : bestObj.class;
+      showToast(`Kalibrasi sukses via ${objName}! 1 cm ≈ ${pixelsPerCm.toFixed(1)} px`, 'success');
+    });
+  }
+
+  // Reset Kalibrasi ke Mode Piksel
+  if (btnResetCalibrate) {
+    btnResetCalibrate.addEventListener('click', () => {
+      pixelsPerCm = null;
+      localStorage.removeItem('benggala_px_per_cm');
+      updateCalibrationUI();
+      showToast('Kalibrasi di-reset ke mode piksel', 'info');
+    });
+  }
+
+  // Inisialisasi status kalibrasi dari localStorage
+  updateCalibrationUI();
 
   // Muat model saat halaman pertama kali dibuka
   loadModel();

@@ -108,6 +108,28 @@ if (empty($_SESSION['csrf_token'])) {
 
           <div class="action-divider"></div>
 
+          <!-- Blok Kalibrasi Ukuran (cm) -->
+          <div class="control-item calibration-box">
+            <div class="calibration-header">
+              <label for="refWidthCm">Lebar Benda Referensi (cm)</label>
+              <span class="calibration-hint">KTP/ATM = 8.56 cm</span>
+            </div>
+            <div class="calibration-inputs">
+              <input type="number" id="refWidthCm" class="form-input" value="8.56" step="0.1" min="1" max="100">
+              <button type="button" id="btnCalibrate" class="btn btn-calibrate" title="Kalibrasi menggunakan objek terdeteksi">
+                📏 Kalibrasi
+              </button>
+              <button type="button" id="btnResetCalibrate" class="btn btn-reset-calibrate" title="Reset kalibrasi ke mode piksel">
+                🔄
+              </button>
+            </div>
+            <div id="calibrationStatus" class="calibration-status">
+              Belum dikalibrasi (mode piksel)
+            </div>
+          </div>
+
+          <div class="action-divider"></div>
+
           <!-- Pilihan Provider LLM -->
           <div class="control-item" style="margin-bottom: 0.9rem;">
             <label for="llmProvider" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.35rem; display: block;">
