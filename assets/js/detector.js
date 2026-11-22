@@ -56,6 +56,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const missionBadge = document.getElementById('missionBadge');
   const missionButtons = document.querySelectorAll('.mission-selector [data-mission]');
 
+  const btnOpenDossier = document.getElementById('btnOpenDossier');
+  const btnCloseDossier = document.getElementById('btnCloseDossier');
+  const btnDownloadDossier = document.getElementById('btnDownloadDossier');
+  const btnShareDossier = document.getElementById('btnShareDossier');
+  const dossierBackdrop = document.getElementById('dossierBackdrop');
+
   // --- State Variables ---
   let model = null;
   let stream = null;
@@ -68,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastPredictions = [];
   let pixelsPerCm = parseFloat(localStorage.getItem('benggala_px_per_cm')) || null;
   let currentZoom = 1.0;
+  let lastDossierData = null;
 
   // Palet warna kontras untuk bounding box per class
   const classColors = [
@@ -811,6 +818,28 @@ document.addEventListener('DOMContentLoaded', () => {
           llmAnalysisContent.textContent = result.analysis;
         }
 
+        // Siapkan data kartu Target Dossier (Task 12B)
+        const currentMissionProfile = (window.BenggalaMissions && typeof window.BenggalaMissions.getActiveMission === 'function')
+          ? window.BenggalaMissions.getActiveMission()
+          : { name: 'Umum' };
+        
+        const primaryObj = detectedObjects[0] || { name: 'Objek', ukuran: 'Mode Piksel' };
+        const dimensionsText = primaryObj.ukuran || (pixelsPerCm ? 'Terkalibrasi' : 'Mode Piksel');
+
+        lastDossierData = {
+          imageDataUrl: captureMergedSnapshot() || compressedImage,
+          objectLabel: primaryObj.name || primaryObj.class_en || 'Objek',
+          dimensions: dimensionsText,
+          missionName: currentMissionProfile.name || 'Umum',
+          provider: result.provider_used || provider,
+          analysisText: result.analysis || '',
+          timestamp: new Date().toLocaleString('id-ID', { hour12: false })
+        };
+
+        if (btnOpenDossier) {
+          btnOpenDossier.style.display = 'inline-flex';
+        }
+
         const msg = result.fallback_triggered 
           ? `Analisis selesai via Fallback (${result.provider_used})`
           : `Analisis sukses via ${result.provider_used}`;
@@ -851,9 +880,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const snapResult = await handleSaveSnapshot(false);
       const logId = (snapResult && snapResult.log_id) ? snapResult.log_id : 0;
 
-      // 2. Eksekusi Analisis Vision AI Otomatis
+      // 2. Eksekusi Analisis Vision AI Otomatis (dengan flag isAutoLock = true)
       showToast(`🤖 Memulai analisis AI otomatis untuk [${objName}]...`, 'info');
-      await executeAiAnalysisWithLog(logId, [lockedObj]);
+      await executeAiAnalysisWithLog(logId, [lockedObj], true);
 
     } catch (err) {
       console.warn('Pipeline Auto-Lock gagal:', err);
@@ -862,7 +891,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  async function executeAiAnalysisWithLog(logId = 0, objectsToAnalyze = null) {
+  async function executeAiAnalysisWithLog(logId = 0, objectsToAnalyze = null, isAutoLock = false) {
     const csrfToken = getCsrfToken();
     const provider = llmProviderSelect ? llmProviderSelect.value : 'deepseek';
     const targetObjects = objectsToAnalyze || currentPredictions;
@@ -931,6 +960,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Muat ulang riwayat agar kartu di galeri langsung menampilkan analisis AI
         loadHistory();
+
+        // Siapkan data kartu Target Dossier (Task 12B)
+        const currentMissionProfile = (window.BenggalaMissions && typeof window.BenggalaMissions.getActiveMission === 'function')
+          ? window.BenggalaMissions.getActiveMission()
+          : { name: 'Umum' };
+        
+        const primaryObj = detectedObjects[0] || { name: 'Objek', ukuran: 'Mode Piksel' };
+        const dimensionsText = primaryObj.ukuran || (pixelsPerCm ? 'Terkalibrasi' : 'Mode Piksel');
+
+        lastDossierData = {
+          imageDataUrl: captureMergedSnapshot() || compressedImage,
+          objectLabel: primaryObj.name || primaryObj.class_en || 'Objek',
+          dimensions: dimensionsText,
+          missionName: currentMissionProfile.name || 'Umum',
+          provider: result.provider_used || provider,
+          analysisText: result.analysis || '',
+          timestamp: new Date().toLocaleString('id-ID', { hour12: false })
+        };
+
+        if (btnOpenDossier) {
+          btnOpenDossier.style.display = 'inline-flex';
+        }
+
+        // Khusus jika dipicu oleh Auto-Lock: otomatis buat kartu dossier dan buka modalnya ("WOW" effect)
+        if (isAutoLock && window.BenggalaDossier && typeof window.BenggalaDossier.generateCard === 'function') {
+          window.BenggalaDossier.generateCard(lastDossierData).then(() => {
+            if (typeof window.BenggalaDossier.openModal === 'function') {
+              window.BenggalaDossier.openModal();
+            }
+          });
+        }
       } else {
         const errorMsg = result.message || 'Gagal memproses analisis AI.';
         showToast(errorMsg, 'error');
@@ -1569,6 +1629,67 @@ document.addEventListener('DOMContentLoaded', () => {
         window.BenggalaMissions.setVoiceEnabled(false);
       }
       showToast('🔇 Suara dihentikan & dibisukan', 'info');
+    });
+  }
+
+  // =========================================================================
+  // Integrasi Generator Kartu Laporan Forensik / Target Dossier (Task 12B)
+  // =========================================================================
+  if (btnOpenDossier) {
+    btnOpenDossier.addEventListener('click', async () => {
+      if (!lastDossierData) {
+        showToast('Belum ada data analisis untuk kartu dossier.', 'info');
+        return;
+      }
+      btnOpenDossier.disabled = true;
+      const oldHtml = btnOpenDossier.innerHTML;
+      btnOpenDossier.innerHTML = '⏳ Menyiapkan Dossier...';
+      try {
+        if (window.BenggalaDossier && typeof window.BenggalaDossier.generateCard === 'function') {
+          await window.BenggalaDossier.generateCard(lastDossierData);
+          if (typeof window.BenggalaDossier.openModal === 'function') {
+            window.BenggalaDossier.openModal();
+          }
+        }
+      } catch (e) {
+        console.error('Error saat membuat kartu dossier:', e);
+        showToast('Gagal membuat kartu dossier.', 'error');
+      } finally {
+        btnOpenDossier.disabled = false;
+        btnOpenDossier.innerHTML = oldHtml;
+      }
+    });
+  }
+
+  if (btnCloseDossier) {
+    btnCloseDossier.addEventListener('click', () => {
+      if (window.BenggalaDossier && typeof window.BenggalaDossier.closeModal === 'function') {
+        window.BenggalaDossier.closeModal();
+      }
+    });
+  }
+
+  if (dossierBackdrop) {
+    dossierBackdrop.addEventListener('click', () => {
+      if (window.BenggalaDossier && typeof window.BenggalaDossier.closeModal === 'function') {
+        window.BenggalaDossier.closeModal();
+      }
+    });
+  }
+
+  if (btnDownloadDossier) {
+    btnDownloadDossier.addEventListener('click', () => {
+      if (window.BenggalaDossier && typeof window.BenggalaDossier.downloadCard === 'function') {
+        window.BenggalaDossier.downloadCard();
+      }
+    });
+  }
+
+  if (btnShareDossier) {
+    btnShareDossier.addEventListener('click', () => {
+      if (window.BenggalaDossier && typeof window.BenggalaDossier.shareCard === 'function') {
+        window.BenggalaDossier.shareCard();
+      }
     });
   }
 

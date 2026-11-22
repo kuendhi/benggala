@@ -291,6 +291,10 @@ if (empty($_SESSION['csrf_token'])) {
           <div id="llmAnalysisContent" class="llm-content">
             <p class="llm-placeholder">Tekan tombol <strong>Analisis Cerdas</strong> untuk memproses visual kamera dengan Vision AI.</p>
           </div>
+          <!-- Tombol Kartu Dossier Forensik (Task 12B) -->
+          <button type="button" id="btnOpenDossier" class="btn btn-dossier" style="display: none;">
+            📋 Buat Kartu Dossier
+          </button>
         </div>
       </div>
     </section>
@@ -466,6 +470,33 @@ if (empty($_SESSION['csrf_token'])) {
       </button>
     </nav>
 
+    <!-- Modal Pratinjau Target Dossier (Task 12B) -->
+    <div id="dossierModal" class="dossier-modal" style="display: none;">
+      <div class="dossier-modal-backdrop" id="dossierBackdrop"></div>
+      <div class="dossier-modal-content">
+        <div class="dossier-modal-header">
+          <div class="dossier-modal-title">
+            <span class="dossier-icon">📋</span>
+            <span>TARGET DOSSIER</span>
+          </div>
+          <button type="button" class="btn-close-panel" id="btnCloseDossier" title="Tutup Dossier">✕</button>
+        </div>
+        <div class="dossier-modal-body">
+          <div class="dossier-preview-wrapper">
+            <img id="dossierPreviewImg" alt="Target Dossier" class="dossier-preview-img" />
+          </div>
+        </div>
+        <div class="dossier-modal-footer">
+          <button type="button" id="btnDownloadDossier" class="btn btn-dossier-action btn-dossier-download">
+            ⬇️ Unduh Kartu (PNG)
+          </button>
+          <button type="button" id="btnShareDossier" class="btn btn-dossier-action btn-dossier-share">
+            📤 Bagikan
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- Kamus Bahasa Indonesia COCO-SSD (Anti-Cache) -->
@@ -482,6 +513,9 @@ if (empty($_SESSION['csrf_token'])) {
 
   <!-- Modul Misi Cepat & Tunanetra (Anti-Cache) -->
   <script src="assets/js/missions.js?v=<?= filemtime('assets/js/missions.js') ?>"></script>
+
+  <!-- Modul Target Dossier PNG Generator (Anti-Cache) -->
+  <script src="assets/js/dossier.js?v=<?= filemtime('assets/js/dossier.js') ?>"></script>
 
   <!-- Detector Script (Anti-Cache) -->
   <script src="assets/js/detector.js?v=<?= filemtime('assets/js/detector.js') ?>"></script>
