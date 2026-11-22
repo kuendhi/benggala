@@ -301,17 +301,51 @@ document.addEventListener('DOMContentLoaded', () => {
       stopCameraTracks();
     }
 
+    // Resolusi Tinggi Ideal: Full HD 1080p hingga 4K dengan frame rate halus
     const constraints = {
       audio: false,
       video: {
         facingMode: currentFacingMode,
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
+        width: { ideal: 1920, max: 3840 },
+        height: { ideal: 1080, max: 2160 },
+        frameRate: { ideal: 60, min: 24 }
       }
     };
 
     try {
-      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (errConstraint) {
+        console.warn('Resolusi 1080p tidak dapat dipenuhi secara kaku, mencoba fallback otomatis:', errConstraint);
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { facingMode: currentFacingMode }
+        });
+      }
+
+      // Optimasi kapabilitas hardware kamera (auto-focus, continuous exposure) jika didukung
+      try {
+        const track = stream.getVideoTracks()[0];
+        if (track && typeof track.getCapabilities === 'function') {
+          const caps = track.getCapabilities();
+          const advanced = {};
+          if (caps.focusMode && caps.focusMode.includes('continuous')) {
+            advanced.focusMode = 'continuous';
+          }
+          if (caps.exposureMode && caps.exposureMode.includes('continuous')) {
+            advanced.exposureMode = 'continuous';
+          }
+          if (caps.whiteBalanceMode && caps.whiteBalanceMode.includes('continuous')) {
+            advanced.whiteBalanceMode = 'continuous';
+          }
+          if (Object.keys(advanced).length > 0 && typeof track.applyConstraints === 'function') {
+            await track.applyConstraints({ advanced: [advanced] }).catch(() => {});
+          }
+        }
+      } catch (capErr) {
+        // Abaikan jika tidak didukung perangkat
+      }
+
       video.srcObject = stream;
 
       await new Promise((resolve) => {
@@ -322,6 +356,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
       isStreaming = true;
       cameraPlaceholder.style.display = 'none';
+
+      // Aktifkan glow ambient stage monitor
+      const cameraStage = document.getElementById('cameraStage');
+      if (cameraStage) {
+        cameraStage.classList.add('active-stream');
+      }
+
+      // Terapkan filter kecerahan monitor tersimpan
+      applySavedBrightness();
 
       // Sinkronkan dimensi canvas
       syncCanvasDimensions();
@@ -335,7 +378,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Mulai loop deteksi real-time
       startDetectionLoop();
-      showToast('Kamera aktif. Deteksi real-time berjalan.', 'info');
+
+      const resBadge = (video.videoWidth >= 1920) ? 'FHD 1080p' : (video.videoWidth >= 1280 ? 'HD 720p' : `${video.videoWidth}×${video.videoHeight}`);
+      showToast(`✨ Monitor Utama Cerah & Resolusi Tinggi: ${video.videoWidth}×${video.videoHeight} (${resBadge})`, 'success');
     } catch (err) {
       console.error('Error saat mengakses kamera:', err);
       let errorMsg = 'Gagal mengakses kamera.';
@@ -380,6 +425,11 @@ document.addEventListener('DOMContentLoaded', () => {
     video.srcObject = null;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     cameraPlaceholder.style.display = 'flex';
+
+    const cameraStage = document.getElementById('cameraStage');
+    if (cameraStage) {
+      cameraStage.classList.remove('active-stream');
+    }
 
     resetCameraFocus();
 
@@ -1301,6 +1351,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Inisialisasi status kalibrasi dari localStorage
   updateCalibrationUI();
+
+  // =========================================================================
+  // Kontrol Kecerahan Layar Monitor Utama
+  // =========================================================================
+  const cameraBrightnessSlider = document.getElementById('cameraBrightnessSlider');
+  const cameraBrightnessVal = document.getElementById('cameraBrightnessVal');
+
+  function applySavedBrightness() {
+    const saved = localStorage.getItem('benggala_cam_brightness') || '110';
+    if (cameraBrightnessSlider) cameraBrightnessSlider.value = saved;
+    if (cameraBrightnessVal) cameraBrightnessVal.textContent = `${saved}%`;
+    if (video) {
+      const brightRatio = parseFloat(saved) / 100;
+      video.style.filter = `brightness(${brightRatio}) contrast(1.08) saturate(1.06)`;
+    }
+  }
+
+  if (cameraBrightnessSlider) {
+    cameraBrightnessSlider.addEventListener('input', (e) => {
+      const val = e.target.value;
+      if (cameraBrightnessVal) cameraBrightnessVal.textContent = `${val}%`;
+      const brightRatio = parseFloat(val) / 100;
+      if (video) {
+        video.style.filter = `brightness(${brightRatio}) contrast(1.08) saturate(1.06)`;
+      }
+      localStorage.setItem('benggala_cam_brightness', val);
+    });
+  }
+
+  // Terapkan pengaturan kecerahan awal
+  applySavedBrightness();
 
   // =========================================================================
   // Event Listeners Smooth Zoom (Slider, Tombol Step, Mouse Wheel, Touch Pinch)

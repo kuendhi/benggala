@@ -221,6 +221,7 @@
     };
 
     const teleFps = document.getElementById('teleFps');
+    const teleRes = document.getElementById('teleRes');
     const teleObjCount = document.getElementById('teleObjCount');
     const teleThreshold = document.getElementById('teleThreshold');
     const teleScale = document.getElementById('teleScale');
@@ -228,6 +229,14 @@
 
     if (teleFps) {
       teleFps.textContent = `${data.fps || 0} FPS`;
+    }
+
+    if (teleRes) {
+      if (data.videoWidth && data.videoHeight && data.isRunning) {
+        teleRes.textContent = `${data.videoWidth}×${data.videoHeight}`;
+      } else {
+        teleRes.textContent = '--';
+      }
     }
 
     if (teleObjCount) {

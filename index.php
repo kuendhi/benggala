@@ -131,6 +131,10 @@ if (empty($_SESSION['csrf_token'])) {
           <span id="teleFps" class="tele-val">--</span>
         </div>
         <div class="tele-row">
+          <span class="tele-label">RESOLUSI</span>
+          <span id="teleRes" class="tele-val">--</span>
+        </div>
+        <div class="tele-row">
           <span class="tele-label">OBJEK</span>
           <span id="teleObjCount" class="tele-val">0</span>
         </div>
@@ -162,7 +166,7 @@ if (empty($_SESSION['csrf_token'])) {
         <button type="button" class="btn-close-panel" data-close-panel title="Tutup Panel">✕</button>
       </div>
       <div class="panel-body">
-        <p class="panel-description">Kontrol umpan video langsung dari modul sensor optik.</p>
+        <p class="panel-description">Kontrol umpan video langsung resolusi tinggi dan kejernihan monitor.</p>
         <div class="button-group">
           <button type="button" id="btnStart" class="btn btn-primary" disabled>
             ▶ Mulai Kamera
@@ -174,6 +178,18 @@ if (empty($_SESSION['csrf_token'])) {
             🔄 Ganti Kamera
           </button>
         </div>
+
+        <div class="action-divider"></div>
+
+        <!-- Kontrol Kecerahan Layar Monitor Utama -->
+        <div class="form-group" style="margin: 0.6rem 0;">
+          <label for="cameraBrightnessSlider" style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">
+            <span>💡 Kecerahan Layar Monitor</span>
+            <span id="cameraBrightnessVal" style="color: var(--cyan); font-weight: 700;">110%</span>
+          </label>
+          <input type="range" id="cameraBrightnessSlider" min="90" max="150" value="110" step="5" style="width: 100%;" title="Atur Kecerahan Layar Monitor Utama">
+        </div>
+
         <div class="action-divider"></div>
         <button type="button" id="btnSnapshot" class="btn btn-action" disabled>
           📸 Ambil Snapshot
