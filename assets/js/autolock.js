@@ -9,9 +9,9 @@
   const BenggalaAutoLock = {
     // Konfigurasi
     enabled: true,
-    acquireMs: 1500,     // 1.5s Fase Membidik
-    lockMs: 2500,        // 2.5s Fase Mengunci (Total 4.0s)
-    cooldownMs: 10000,   // 10s Jeda Cooldown
+    acquireMs: 1000,     // 1.0s Fase Membidik (Snappy pada target terpilih)
+    lockMs: 1500,        // 1.5s Fase Mengunci (Total 2.5s)
+    cooldownMs: 8000,    // 8s Jeda Cooldown
     maxMovePx: 45,       // Toleransi Pergeseran Posisi (px)
     lerpFactor: 0.22,    // Faktor Kehalusan Lerp
 

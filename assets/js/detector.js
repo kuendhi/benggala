@@ -230,31 +230,26 @@ document.addEventListener('DOMContentLoaded', () => {
       focusState.targetClass = hit.class;
 
       const objName = typeof window.translateLabel === 'function' ? window.translateLabel(hit.class) : hit.class;
-      showToast(`🎯 Fokus terkunci pada: ${objName}`, 'success');
+      showToast(`🎯 Target [${objName}] Terpilih! Memulai Kuncian & Auto-Snapshot...`, 'success');
 
       // Posisikan #focusReticle ke koordinat layar objek
       const screenX = rect.left + bboxCenterX * (rect.width / overlay.width);
       const screenY = rect.top + bboxCenterY * (rect.height / overlay.height);
       updateFocusReticlePosition(screenX, screenY);
+
+      // Tampilkan tombol reset fokus
+      if (btnResetFocus) {
+        btnResetFocus.classList.remove('hidden');
+      }
+
+      // Reset timer Auto-Lock agar siklus kuncian dimulai ulang dengan bersih untuk objek terpilih
+      if (window.BenggalaAutoLock && typeof window.BenggalaAutoLock.reset === 'function') {
+        window.BenggalaAutoLock.reset();
+      }
     } else {
-      // Menyentuh area kosong
-      focusState.active = true;
-      focusState.canvasX = tapX;
-      focusState.canvasY = tapY;
-      focusState.targetClass = null;
-
-      showToast('🎯 Titik fokus dipindahkan', 'info');
-      updateFocusReticlePosition(clientX, clientY);
-    }
-
-    // Tampilkan tombol reset fokus
-    if (btnResetFocus) {
-      btnResetFocus.classList.remove('hidden');
-    }
-
-    // Reset timer Auto-Lock agar siklus kuncian dimulai ulang dengan bersih
-    if (window.BenggalaAutoLock && typeof window.BenggalaAutoLock.reset === 'function') {
-      window.BenggalaAutoLock.reset();
+      // Menyentuh area kosong: Jangan kunci, kembalikan ke mode jelajah bebas
+      resetCameraFocus();
+      showToast('🎯 Mode Bebas: Ketuk 2x pada objek untuk mengunci & auto-snapshot', 'info');
     }
   }
 
@@ -579,11 +574,11 @@ document.addEventListener('DOMContentLoaded', () => {
             lastFpsUpdate = now;
           }
 
-          // Evaluasi Filter Fokus Kustom (Task 15)
+          // Evaluasi Filter Fokus & Auto-Lock Target (HANYA AKTIF JIKA OBJEK DI-KLIK 2X)
           let displayPredictions = filtered;
-          let autoLockPredictions = filtered;
+          let autoLockPredictions = []; // Default KOSONG: Cegah kuncian dan auto-snapshot pasif!
 
-          if (focusState.active) {
+          if (focusState.active && focusState.targetClass) {
             let focusedObject = null;
 
             if (filtered.length > 0) {
@@ -600,12 +595,12 @@ document.addEventListener('DOMContentLoaded', () => {
                   focusState.canvasX >= bx && focusState.canvasX <= bx + bw &&
                   focusState.canvasY >= by && focusState.canvasY <= by + bh
                 );
-                const classMatch = (focusState.targetClass && pred.class === focusState.targetClass);
+                const classMatch = (pred.class === focusState.targetClass);
 
                 // Skor kecocokan: makin kecil makin cocok
                 let score = dist;
                 if (isInside) score -= 100;
-                if (classMatch) score -= 150;
+                if (classMatch) score -= 200;
 
                 if (score < bestScore) {
                   bestScore = score;
@@ -632,7 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateFocusReticlePosition(screenX, screenY);
               }
 
-              // Isolasi visual & auto-lock: hanya objek fokus penuh
+              // Isolasi visual & auto-lock: hanya objek terpilih yang dikunci dan difoto otomatis!
               displayPredictions = [focusedObject];
               autoLockPredictions = [focusedObject];
             } else {
@@ -1166,10 +1161,16 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast(`🤖 Memulai analisis AI otomatis untuk [${objName}]...`, 'info');
       await executeAiAnalysisWithLog(logId, [lockedObj], true);
 
+      showToast(`✅ Snapshot & Analisis [${objName}] berhasil dikirim!`, 'success');
     } catch (err) {
       console.warn('Pipeline Auto-Lock gagal:', err);
+      showToast('⚠️ Gagal mengirim analisis otomatis.', 'error');
     } finally {
       isAutoLockProcessing = false;
+      // Kembalikan fokus ke mode jelajah bebas setelah snapshot & analisis terkirim
+      setTimeout(() => {
+        resetCameraFocus();
+      }, 1500);
     }
   }
 
@@ -1366,7 +1367,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnBrightnessBoost = document.getElementById('btnBrightnessBoost');
 
   function applySavedBrightness() {
-    const saved = localStorage.getItem('benggala_cam_brightness') || '120';
+    let saved = localStorage.getItem('benggala_cam_brightness');
+    // Jika belum diset atau sebelumnya 120%, sesuaikan ke 110% (-10% dari kecerahan sebelumnya)
+    if (!saved || parseInt(saved, 10) >= 120) {
+      saved = '110';
+      localStorage.setItem('benggala_cam_brightness', '110');
+    }
     if (cameraBrightnessSlider) cameraBrightnessSlider.value = saved;
     if (cameraBrightnessVal) cameraBrightnessVal.textContent = `${saved}%`;
     if (video) {
@@ -1387,15 +1393,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Tombol Cepat Kecerahan Layar (110% -> 125% -> 145%)
+  // Tombol Cepat Kecerahan Layar (110% -> 125% -> 140%)
   if (btnBrightnessBoost) {
     btnBrightnessBoost.addEventListener('click', () => {
-      const current = parseInt(localStorage.getItem('benggala_cam_brightness') || '120', 10);
+      const current = parseInt(localStorage.getItem('benggala_cam_brightness') || '110', 10);
       let next = 125;
-      if (current < 125) {
+      if (current <= 110) {
         next = 125;
-      } else if (current < 145) {
-        next = 145;
+      } else if (current < 140) {
+        next = 140;
       } else {
         next = 110;
       }
@@ -1493,7 +1499,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const timeDiff = now - lastTapTime;
       const dist = Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY);
 
-      if (timeDiff > 0 && timeDiff <= 320 && dist <= 30) {
+      if (timeDiff > 0 && timeDiff <= 350 && dist <= 35) {
         // Double-tap terdeteksi!
         lastTapTime = 0;
         handleDoubleTapFocus(e.clientX, e.clientY);
