@@ -70,6 +70,11 @@ $secondary = ($primary === 'deepseek') ? 'gemini' : 'deepseek';
 $logId = filter_var($input['log_id'] ?? null, FILTER_VALIDATE_INT);
 $logId = ($logId !== false && $logId !== null && $logId > 0) ? (int)$logId : 0;
 
+// 4c. Ambil opsional mission_prompt untuk 1-Click Mission Modes (maks 600 karakter)
+$defaultSystemPrompt = 'Anda adalah asisten AI Benggala yang bertugas menganalisis deteksi objek visual dan memberikan ringkasan yang jelas, akurat, dan ramah dalam Bahasa Indonesia.';
+$rawMissionPrompt = trim((string)($input['mission_prompt'] ?? ''));
+$effectiveSystemPrompt = ($rawMissionPrompt !== '') ? substr($rawMissionPrompt, 0, 600) : $defaultSystemPrompt;
+
 // Helper untuk menyimpan hasil analisis AI ke baris log di detection_logs
 function saveAnalysisToLog(int $id, string $provider, string $analysis): void {
     if ($id <= 0) return;
@@ -96,7 +101,7 @@ function saveAnalysisToLog(int $id, string $provider, string $analysis): void {
 // =============================================================================
 // FUNGSI PROVIDER 1: DeepSeek API
 // =============================================================================
-function callDeepSeek(string $promptText, array $env): array {
+function callDeepSeek(string $promptText, array $env, string $systemPrompt = ''): array {
     $apiUrl = $env['DEEPSEEK_API_URL'] ?? 'https://api.deepseek.com/chat/completions';
     $model = $env['DEEPSEEK_MODEL'] ?? 'deepseek-chat';
     $apiKey = trim((string)($env['DEEPSEEK_API_KEY'] ?? ''));
@@ -110,12 +115,16 @@ function callDeepSeek(string $promptText, array $env): array {
         ];
     }
 
+    $sysContent = ($systemPrompt !== '') 
+        ? $systemPrompt 
+        : 'Anda adalah asisten AI Benggala yang bertugas menganalisis deteksi objek visual dan memberikan ringkasan yang jelas, akurat, dan ramah dalam Bahasa Indonesia.';
+
     $payload = [
         'model' => $model,
         'messages' => [
             [
                 'role' => 'system',
-                'content' => 'Anda adalah asisten AI Benggala yang bertugas menganalisis deteksi objek visual dan memberikan ringkasan yang jelas, akurat, dan ramah dalam Bahasa Indonesia.'
+                'content' => $sysContent
             ],
             [
                 'role' => 'user',
@@ -181,7 +190,7 @@ function callDeepSeek(string $promptText, array $env): array {
 // =============================================================================
 // FUNGSI PROVIDER 2: Google Gemini API (Multimodal Vision Supported)
 // =============================================================================
-function callGemini(string $promptText, array $env, ?string $imageBase64 = null): array {
+function callGemini(string $promptText, array $env, ?string $imageBase64 = null, string $systemPrompt = ''): array {
     $apiUrl = $env['GEMINI_API_URL'] ?? ($env['LLM_API_URL'] ?? 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent');
     $apiKey = trim((string)($env['GEMINI_API_KEY'] ?? ($env['LLM_API_KEY'] ?? '')));
 
@@ -193,6 +202,10 @@ function callGemini(string $promptText, array $env, ?string $imageBase64 = null)
             'error' => 'Gemini API Key belum dikonfigurasi di file .env'
         ];
     }
+
+    $sysContent = ($systemPrompt !== '') 
+        ? $systemPrompt 
+        : 'Anda adalah asisten AI Benggala yang bertugas menganalisis deteksi objek visual dan memberikan ringkasan yang jelas, akurat, dan ramah dalam Bahasa Indonesia.';
 
     // Susun array parts (teks + opsional inline image data untuk Vision)
     if ($imageBase64 !== null && $imageBase64 !== '') {
@@ -214,6 +227,11 @@ function callGemini(string $promptText, array $env, ?string $imageBase64 = null)
     }
 
     $payload = [
+        'system_instruction' => [
+            'parts' => [
+                ['text' => $sysContent]
+            ]
+        ],
         'contents' => [
             [
                 'parts' => $parts
@@ -292,7 +310,9 @@ function logFallbackFailure(string $primary, string $secondary, string $reason):
 }
 
 // 1. Eksekusi Provider Utama ($primary)
-$primaryResult = ($primary === 'deepseek') ? callDeepSeek($promptText, $env) : callGemini($promptText, $env, $imageBase64);
+$primaryResult = ($primary === 'deepseek') 
+    ? callDeepSeek($promptText, $env, $effectiveSystemPrompt) 
+    : callGemini($promptText, $env, $imageBase64, $effectiveSystemPrompt);
 
 if ($primaryResult['ok'] === true) {
     if ($logId > 0) {
@@ -312,7 +332,9 @@ if ($primaryResult['ok'] === true) {
 // 2. Jika Primary Gagal, Catat Log & Eksekusi Provider Cadangan ($secondary)
 logFallbackFailure($primary, $secondary, $primaryResult['error']);
 
-$secondaryResult = ($secondary === 'deepseek') ? callDeepSeek($promptText, $env) : callGemini($promptText, $env, $imageBase64);
+$secondaryResult = ($secondary === 'deepseek') 
+    ? callDeepSeek($promptText, $env, $effectiveSystemPrompt) 
+    : callGemini($promptText, $env, $imageBase64, $effectiveSystemPrompt);
 
 if ($secondaryResult['ok'] === true) {
     if ($logId > 0) {

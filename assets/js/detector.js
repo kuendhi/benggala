@@ -51,6 +51,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnZoomOut = document.getElementById('btnZoomOut');
   const zoomValue = document.getElementById('zoomValue');
 
+  const btnVoiceCmd = document.getElementById('btnVoiceCmd');
+  const btnStopSpeak = document.getElementById('btnStopSpeak');
+  const missionBadge = document.getElementById('missionBadge');
+  const missionButtons = document.querySelectorAll('.mission-selector [data-mission]');
+
   // --- State Variables ---
   let model = null;
   let stream = null;
@@ -410,6 +415,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
           updateLiveStats(filtered);
 
+          // Panduan Navigasi Spasial Suara Real-Time (Khusus Mode Tunanetra)
+          if (window.BenggalaMissions && typeof window.BenggalaMissions.announceSpatial === 'function') {
+            window.BenggalaMissions.announceSpatial(filtered, video.videoWidth || 640, video.videoHeight || 480);
+          }
+
           // Update Telemetri & Mini Radar YOULO OS
           if (window.BenggalaCockpit && typeof window.BenggalaCockpit.updateTelemetry === 'function') {
             window.BenggalaCockpit.updateTelemetry({
@@ -760,10 +770,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Tangkap foto terkompresi dari video (maks 640px JPEG 0.7) untuk Gemini Vision
     const compressedImage = isStreaming ? captureCompressedFrame() : null;
 
+    const activeMissionPrompt = (window.BenggalaMissions && typeof window.BenggalaMissions.getActivePrompt === 'function')
+      ? window.BenggalaMissions.getActivePrompt()
+      : '';
+
     const requestPayload = {
       provider: provider,
       objects: detectedObjects
     };
+
+    if (activeMissionPrompt) {
+      requestPayload.mission_prompt = activeMissionPrompt;
+    }
 
     if (compressedImage) {
       requestPayload.image = compressedImage;
@@ -864,11 +882,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const compressedImage = isStreaming ? captureCompressedFrame() : null;
+    const activeMissionPrompt = (window.BenggalaMissions && typeof window.BenggalaMissions.getActivePrompt === 'function')
+      ? window.BenggalaMissions.getActivePrompt()
+      : '';
+
     const requestPayload = {
       provider: provider,
       objects: detectedObjects,
       log_id: logId
     };
+    if (activeMissionPrompt) {
+      requestPayload.mission_prompt = activeMissionPrompt;
+    }
     if (compressedImage) {
       requestPayload.image = compressedImage;
     }
@@ -1487,6 +1512,63 @@ document.addEventListener('DOMContentLoaded', () => {
         btnRefreshHistory.disabled = false;
         btnRefreshHistory.innerHTML = oldHtml;
       });
+    });
+  }
+
+  // =========================================================================
+  // Integrasi Mode Misi AI Cepat & Suara Tunanetra (Task 12A)
+  // =========================================================================
+  if (missionButtons && missionButtons.length > 0) {
+    missionButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const missionKey = btn.getAttribute('data-mission');
+        if (window.BenggalaMissions && typeof window.BenggalaMissions.setMission === 'function') {
+          const profile = window.BenggalaMissions.setMission(missionKey);
+          
+          // Perbarui kelas active pada tombol misi
+          missionButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+
+          // Perbarui badge misi di HUD header
+          if (missionBadge && profile) {
+            missionBadge.textContent = profile.tag || profile.name.toUpperCase();
+          }
+
+          showToast(`Mode Misi: ${profile.name}`, 'info');
+        }
+      });
+    });
+  }
+
+  if (btnVoiceCmd) {
+    btnVoiceCmd.addEventListener('click', () => {
+      if (window.BenggalaMissions && typeof window.BenggalaMissions.setVoiceEnabled === 'function') {
+        window.BenggalaMissions.setVoiceEnabled(true);
+      }
+      if (window.BenggalaVoice) {
+        if (currentPredictions && currentPredictions.length > 0) {
+          const summary = currentPredictions.map(p => {
+            const name = typeof window.translateLabel === 'function' ? window.translateLabel(p.class) : p.class;
+            return name;
+          }).join(', ');
+          window.BenggalaVoice.speak(`Terdeteksi: ${summary}`);
+        } else {
+          window.BenggalaVoice.speak('Panduan suara aktif. Belum ada objek terdeteksi di depan kamera.');
+        }
+      }
+      showToast('🔊 Panduan suara diaktifkan', 'info');
+    });
+  }
+
+  if (btnStopSpeak) {
+    btnStopSpeak.addEventListener('click', () => {
+      if (window.BenggalaVoice && typeof window.BenggalaVoice.stop === 'function') {
+        window.BenggalaVoice.stop();
+      }
+      if (window.BenggalaMissions && typeof window.BenggalaMissions.setVoiceEnabled === 'function') {
+        window.BenggalaMissions.setVoiceEnabled(false);
+      }
+      showToast('🔇 Suara dihentikan & dibisukan', 'info');
     });
   }
 

@@ -46,6 +46,7 @@ if (empty($_SESSION['csrf_token'])) {
 
       <!-- Tengah: Status Misi Dinamis + Jam Uptime Orbitron -->
       <div class="hud-header-center">
+        <span id="missionBadge" class="mission-tag-badge">UMUM</span>
         <span id="missionStatus" class="mission-status-badge">STANDBY</span>
         <span id="missionClock" class="mission-clock">T+ 00:00:00</span>
       </div>
@@ -244,6 +245,18 @@ if (empty($_SESSION['csrf_token'])) {
         <button type="button" class="btn-close-panel" data-close-panel title="Tutup Panel">✕</button>
       </div>
       <div class="panel-body">
+        <!-- Selector Mode Misi AI Cepat -->
+        <div class="mission-selector-container">
+          <label class="mission-selector-label">🎯 Mode Misi AI Cepat:</label>
+          <div class="mission-selector" id="missionSelector">
+            <button type="button" class="btn-mission active" data-mission="default">🎯 Umum</button>
+            <button type="button" class="btn-mission" data-mission="tunanetra">👁️ Tunanetra</button>
+            <button type="button" class="btn-mission" data-mission="sampah">♻️ Pilah Sampah</button>
+            <button type="button" class="btn-mission" data-mission="qc">📦 QC UMKM</button>
+            <button type="button" class="btn-mission" data-mission="edukasi">🎓 Edukasi</button>
+          </div>
+        </div>
+
         <div class="control-item">
           <label for="llmProvider">Pilihan Provider AI</label>
           <select id="llmProvider" class="form-select">
@@ -466,6 +479,9 @@ if (empty($_SESSION['csrf_token'])) {
 
   <!-- Modul Auto-Lock Target & Pipeline AI (Anti-Cache) -->
   <script src="assets/js/autolock.js?v=<?= filemtime('assets/js/autolock.js') ?>"></script>
+
+  <!-- Modul Misi Cepat & Tunanetra (Anti-Cache) -->
+  <script src="assets/js/missions.js?v=<?= filemtime('assets/js/missions.js') ?>"></script>
 
   <!-- Detector Script (Anti-Cache) -->
   <script src="assets/js/detector.js?v=<?= filemtime('assets/js/detector.js') ?>"></script>
