@@ -33,13 +33,13 @@ if (empty($_SESSION['csrf_token'])) {
     <!-- 1. Header HUD (.hud-header) -->
     <header class="hud-header">
       <!-- Kiri: Logo + OS Badge + Model Status -->
-      <div class="hud-header-left">
+      <div class="hud-header-left telemetry-box">
         <div class="hud-brand">
           <span class="hud-logo-icon">👁️</span>
           <span class="hud-logo-text">BENGGALA</span>
           <span class="hud-os-badge">OS v2.0</span>
         </div>
-        <span id="modelStatus" class="status-badge loading">
+        <span id="modelStatus" class="status-badge loading hud-live-stats">
           <span class="status-dot"></span> Memuat Model AI...
         </span>
       </div>
@@ -110,7 +110,6 @@ if (empty($_SESSION['csrf_token'])) {
           <div class="crosshair-axis axis-x"></div>
           <div class="crosshair-axis axis-y"></div>
         </div>
-        <div class="hud-scanlines"></div>
       </div>
 
       <!-- Pojok Kiri Atas: HUD Radar Mini (.hud-radar) -->

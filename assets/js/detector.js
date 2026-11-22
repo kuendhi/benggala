@@ -75,6 +75,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let pixelsPerCm = parseFloat(localStorage.getItem('benggala_px_per_cm')) || null;
   let currentZoom = 1.0;
   let lastDossierData = null;
+  let smoothedBoxesMap = new Map();
+  let lastStatsUpdate = 0;
+  const STATS_THROTTLE_MS = 250; // Batasi update DOM statistik live max 4x/detik (anti layout thrashing)
 
   // Palet warna kontras untuk bounding box per class
   const classColors = [
@@ -154,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Update badge status UI
       modelStatus.classList.remove('loading', 'error');
-      modelStatus.classList.add('ready');
+      modelStatus.classList.add('ready', 'hud-live-stats');
       modelStatus.innerHTML = '<span class="status-dot"></span> Model Siap';
 
       // Aktifkan tombol kontrol kamera
@@ -163,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
       console.error('Gagal memuat model COCO-SSD:', error);
       modelStatus.classList.remove('loading', 'ready');
-      modelStatus.classList.add('error');
+      modelStatus.classList.add('error', 'hud-live-stats');
       modelStatus.innerHTML = '<span class="status-dot"></span> Gagal Memuat Model';
       showCameraError('Gagal memuat model AI. Pastikan CDN TensorFlow.js & COCO-SSD dapat diakses.');
     }
@@ -474,55 +477,77 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
-  // 4. Render Bounding Box & Label Teks
+  // 4. Render Bounding Box & Label Teks (dengan Lerp Smoothing Anti-Jitter)
   // =========================================================================
   function renderPredictions(predictions) {
+    // Pastikan pembersihan canvas clearRect dilakukan tepat sebelum menggambar ulang
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (!predictions || predictions.length === 0) {
+      smoothedBoxesMap.clear();
       return;
     }
 
     const scale = Math.max(1, Math.round(canvas.width / 800));
-    const fontSize = Math.max(14, 14 * scale);
+    const fontSize = Math.max(15, 15 * scale);
     const lineWidth = Math.max(2, 2.5 * scale);
 
     ctx.font = `bold ${fontSize}px sans-serif`;
     ctx.textBaseline = 'top';
 
-    predictions.forEach(prediction => {
-      const [x, y, width, height] = prediction.bbox;
+    const currentMap = new Map();
+    const LERP_FACTOR = 0.65; // Interpolasi halus antar-frame untuk meredam jitter/lonjakan
+
+    predictions.forEach((prediction, idx) => {
+      const [rawX, rawY, rawW, rawH] = prediction.bbox;
+      const key = `${prediction.class}_${idx}`;
+
+      let smoothX = rawX;
+      let smoothY = rawY;
+      let smoothW = rawW;
+      let smoothH = rawH;
+
+      if (smoothedBoxesMap.has(key)) {
+        const prev = smoothedBoxesMap.get(key);
+        smoothX = prev.x + (rawX - prev.x) * LERP_FACTOR;
+        smoothY = prev.y + (rawY - prev.y) * LERP_FACTOR;
+        smoothW = prev.width + (rawW - prev.width) * LERP_FACTOR;
+        smoothH = prev.height + (rawH - prev.height) * LERP_FACTOR;
+      }
+
+      currentMap.set(key, { x: smoothX, y: smoothY, width: smoothW, height: smoothH });
+
       const color = getColorForClass(prediction.class);
       const translatedName = typeof window.translateLabel === 'function' ? window.translateLabel(prediction.class) : prediction.class;
       const scorePercent = Math.round(prediction.score * 100);
 
       let labelText = `${translatedName} ${prediction.score.toFixed(2)}`;
       if (pixelsPerCm && pixelsPerCm > 0) {
-        const wCm = (width / pixelsPerCm).toFixed(1);
-        const hCm = (height / pixelsPerCm).toFixed(1);
+        const wCm = (smoothW / pixelsPerCm).toFixed(1);
+        const hCm = (smoothH / pixelsPerCm).toFixed(1);
         labelText = `${translatedName} ${scorePercent}% (${wCm}×${hCm} cm)`;
       }
 
-      // Bounding Box
+      // Bounding Box Halus
       ctx.strokeStyle = color;
       ctx.lineWidth = lineWidth;
       ctx.shadowColor = color;
       ctx.shadowBlur = 6 * scale;
-      ctx.strokeRect(x, y, width, height);
+      ctx.strokeRect(smoothX, smoothY, smoothW, smoothH);
       ctx.shadowBlur = 0;
 
-      // Label background & text
+      // Label background & text kontras tinggi
       const textMetrics = ctx.measureText(labelText);
       const paddingX = 8 * scale;
       const paddingY = 4 * scale;
       const labelHeight = fontSize + (paddingY * 2);
       const labelWidth = textMetrics.width + (paddingX * 2);
 
-      let labelY = y - labelHeight;
+      let labelY = smoothY - labelHeight;
       if (labelY < 0) {
-        labelY = y;
+        labelY = smoothY;
       }
-      let labelX = x;
+      let labelX = smoothX;
       if (labelX + labelWidth > canvas.width) {
         labelX = Math.max(0, canvas.width - labelWidth);
       }
@@ -532,19 +557,30 @@ document.addEventListener('DOMContentLoaded', () => {
       ctx.fillStyle = '#0f172a';
       ctx.fillText(labelText, labelX + paddingX, labelY + paddingY);
     });
+
+    smoothedBoxesMap = currentMap;
   }
 
   // =========================================================================
-  // 5. Panel Statistik Live
+  // 5. Panel Statistik Live (Throttled DOM Anti-Layout-Thrashing & High Contrast)
   // =========================================================================
   function updateLiveStats(predictions) {
     const total = predictions.length;
-    totalObjectsCount.textContent = `${total} Objek`;
+    if (totalObjectsCount) {
+      totalObjectsCount.textContent = `${total} Objek`;
+    }
 
     if (total === 0) {
       resetStatsPanel();
       return;
     }
+
+    // Batasi frekuensi pembaruan DOM (maks 4x per detik) agar animasi tetap 60 FPS
+    const now = performance.now();
+    if (now - lastStatsUpdate < STATS_THROTTLE_MS) {
+      return;
+    }
+    lastStatsUpdate = now;
 
     const grouped = {};
     predictions.forEach(p => {
@@ -571,18 +607,18 @@ document.addEventListener('DOMContentLoaded', () => {
       if (pixelsPerCm && pixelsPerCm > 0 && data.bbox) {
         const wCm = (data.bbox[2] / pixelsPerCm).toFixed(1);
         const hCm = (data.bbox[3] / pixelsPerCm).toFixed(1);
-        dimensionTag = `<span class="item-dimension">${wCm}×${hCm} cm</span>`;
+        dimensionTag = `<span class="item-dimension" style="color: #00E5FF; font-weight: 700;">${wCm}×${hCm} cm</span>`;
       }
 
       html += `
-        <div class="detection-item" style="border-left-color: ${color}">
+        <div class="detection-item telemetry-box" style="border-left-color: ${color}">
           <div class="item-left">
-            <span class="item-name">${translatedName}</span>
-            <span class="item-count-badge">x${data.count}</span>
+            <span class="item-name hud-live-stats" style="color: #FFFFFF; font-weight: 700;">${translatedName}</span>
+            <span class="item-count-badge" style="color: #00E5FF; font-weight: 700;">x${data.count}</span>
             ${dimensionTag}
           </div>
           <div class="item-right">
-            <span class="item-score">${percent}%</span>
+            <span class="item-score" style="color: #00E676; font-weight: 700;">${percent}%</span>
             <div class="confidence-bar-bg">
               <div class="confidence-bar-fill" style="width: ${percent}%;"></div>
             </div>
