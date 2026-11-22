@@ -51,8 +51,9 @@ if (empty($_SESSION['csrf_token'])) {
         <span id="missionClock" class="mission-clock">T+ 00:00:00</span>
       </div>
 
-      <!-- Kanan: Tombol Cepat (Mode Tenang, Mode Darurat, Settings, Install PWA) -->
+      <!-- Kanan: Tombol Cepat (Visi 2027, Mode Tenang, Mode Darurat, Settings, Install PWA) -->
       <div class="hud-header-right">
+        <button type="button" id="btnRoadmap" class="hud-btn-accent" title="Visi Pengembangan 2027">📡 VISI 2027</button>
         <button type="button" id="btnQuietMode" class="hud-btn" title="Toggle Mode Tenang (Sembunyikan HUD)">
           🌙
         </button>
@@ -497,6 +498,86 @@ if (empty($_SESSION['csrf_token'])) {
       </div>
     </div>
 
+    <!-- Tactical Transmission & Breaking News Overlay: Visi 2027 (Task 13) -->
+    <div id="roadmapOverlay" class="roadmap-overlay" style="display: none;">
+      <div class="roadmap-backdrop" id="roadmapBackdrop"></div>
+      <div class="roadmap-window">
+        <!-- Tactical Broadcast Header -->
+        <div class="roadmap-header">
+          <div class="roadmap-header-left">
+            <span class="live-rec-dot"></span>
+            <span class="live-rec-badge">TACTICAL BROADCAST</span>
+            <span class="roadmap-header-title">BENGGALA // ROADMAP STRATEGIS 2027</span>
+          </div>
+          <div class="roadmap-header-right">
+            <div class="roadmap-slide-counter">
+              <span class="counter-label">FASE</span>
+              <span id="roadmapSlideNum" class="counter-val">01</span>
+              <span class="counter-total">/ 05</span>
+            </div>
+            <div class="roadmap-controls">
+              <button type="button" id="btnRoadmapPrev" class="roadmap-ctrl-btn" title="Fase Sebelumnya">◀</button>
+              <button type="button" id="btnRoadmapPause" class="roadmap-ctrl-btn" title="Jeda/Lanjutkan Otomatis">⏸</button>
+              <button type="button" id="btnRoadmapNext" class="roadmap-ctrl-btn" title="Fase Berikutnya">▶</button>
+              <button type="button" id="btnCloseRoadmap" class="roadmap-ctrl-btn roadmap-btn-close" title="Tutup Transmisi">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Slide Body -->
+        <div class="roadmap-body">
+          <!-- Kolom Teks / Konten -->
+          <div class="roadmap-content-col" id="roadmapContentCol">
+            <div class="roadmap-phase-tag" id="roadmapPhaseTag">FASE 1 // REAL-TIME CLOUD</div>
+            <h2 class="roadmap-slide-title" id="roadmapSlideTitle">GEMINI LIVE API (STREAMING 2 ARAH)</h2>
+            
+            <div class="roadmap-cards-grid">
+              <!-- Kotak Saat Ini -->
+              <div class="roadmap-card card-current">
+                <div class="card-header">
+                  <span class="card-badge badge-current">⚡ SAAT INI (KONDISI EKSISTING)</span>
+                </div>
+                <div class="card-body">
+                  <p id="roadmapCurrentText">Auto-Lock 4 detik (hemat kuota gratis).</p>
+                </div>
+              </div>
+
+              <!-- Kotak Dengan Pendanaan -->
+              <div class="roadmap-card card-target">
+                <div class="card-header">
+                  <span class="card-badge badge-target">🚀 DENGAN PENDANAAN // GOOGLE TECH</span>
+                </div>
+                <div class="card-body">
+                  <p id="roadmapTargetText">Upgrade ke Google Gemini Multimodal Live API (WebSockets)...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Kolom Ilustrasi SVG Futuristik -->
+          <div class="roadmap-visual-col">
+            <div class="roadmap-svg-frame" id="roadmapSvgFrame">
+              <!-- SVG dinamis dari roadmap.js -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Breaking News Ticker Bar -->
+        <div class="roadmap-ticker-bar">
+          <div class="ticker-badge">
+            <span class="ticker-beacon"></span>
+            <span>BREAKING NEWS 2027</span>
+          </div>
+          <div class="ticker-marquee-wrapper">
+            <div class="ticker-marquee-content" id="roadmapTickerText">
+              [FASE 1] GOOGLE GEMINI LIVE API AKAN HADIRKAN SUARA 2 ARAH REAL-TIME STREAMING UNTUK TUNANETRA • [FASE 2] MODEL CUSTOM SPESIFIK INDONESIA DILATIH VIA GOOGLE CLOUD VERTEX AI UNTUK PERTANIAN &amp; QC UMKM • [FASE 3] COMMAND CENTER SKALA KOTA MENGGUNAKAN GOOGLE CLOUD RUN, FIREBASE &amp; GOOGLE MAPS 3D PHOTOREALISTIC TILES • [FASE 4] HARDWARE KACAMATA PINTAR HANDS-FREE DENGAN BONE CONDUCTION &amp; INTEGRASI OTOMASI IOT ESP32/PLC • [FASE 5] INTEGRASI WHATSAPP BUSINESS API, SMS GATEWAY DARURAT &amp; DASHBOARD ANALITIK GOOGLE BIGQUERY / LOOKER STUDIO • BENGGALA OS: MENUJU REVOLUSI VISION AI MERAKYAT 2027
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
   </div>
 
   <!-- Kamus Bahasa Indonesia COCO-SSD (Anti-Cache) -->
@@ -516,6 +597,9 @@ if (empty($_SESSION['csrf_token'])) {
 
   <!-- Modul Target Dossier PNG Generator (Anti-Cache) -->
   <script src="assets/js/dossier.js?v=<?= filemtime('assets/js/dossier.js') ?>"></script>
+
+  <!-- Modul Transmisi Taktis & Breaking News Visi 2027 (Anti-Cache) -->
+  <script src="assets/js/roadmap.js?v=<?= filemtime('assets/js/roadmap.js') ?>"></script>
 
   <!-- Detector Script (Anti-Cache) -->
   <script src="assets/js/detector.js?v=<?= filemtime('assets/js/detector.js') ?>"></script>
