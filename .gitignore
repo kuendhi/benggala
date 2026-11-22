@@ -1,0 +1,5 @@
+.env
+uploads/snapshots/*.jpg
+uploads/snapshots/*.png
+.DS_Store
+Thumbs.db
