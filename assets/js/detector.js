@@ -266,6 +266,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     currentPredictions = [];
     resetStatsPanel();
+
+    // Update Telemetri YOULO OS ke STANDBY
+    if (window.BenggalaCockpit && typeof window.BenggalaCockpit.updateTelemetry === 'function') {
+      window.BenggalaCockpit.updateTelemetry({
+        fps: 0,
+        predictions: [],
+        threshold: Math.round(minConfidence * 100),
+        pixelsPerCm: pixelsPerCm,
+        isRunning: false,
+        isCctv: false
+      });
+    }
   }
 
   async function switchCamera() {
@@ -297,6 +309,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // 3. Loop Deteksi Real-Time (requestAnimationFrame + model.detect)
   // =========================================================================
   function startDetectionLoop() {
+    let frameCount = 0;
+    let currentFps = 0;
+    let lastFpsUpdate = performance.now();
+
     const detectFrame = async () => {
       if (!isStreaming) return;
 
@@ -310,8 +326,31 @@ document.addEventListener('DOMContentLoaded', () => {
           currentPredictions = filtered;
           lastPredictions = filtered;
 
+          // Hitung FPS Riil
+          const now = performance.now();
+          frameCount++;
+          if (now - lastFpsUpdate >= 500) {
+            currentFps = Math.round((frameCount * 1000) / (now - lastFpsUpdate));
+            frameCount = 0;
+            lastFpsUpdate = now;
+          }
+
           renderPredictions(filtered);
           updateLiveStats(filtered);
+
+          // Update Telemetri & Mini Radar YOULO OS
+          if (window.BenggalaCockpit && typeof window.BenggalaCockpit.updateTelemetry === 'function') {
+            window.BenggalaCockpit.updateTelemetry({
+              fps: currentFps,
+              predictions: filtered,
+              videoWidth: video.videoWidth || 640,
+              videoHeight: video.videoHeight || 480,
+              threshold: Math.round(minConfidence * 100),
+              pixelsPerCm: pixelsPerCm,
+              isRunning: isStreaming,
+              isCctv: window.BenggalaCCTV ? window.BenggalaCCTV.isActive : false
+            });
+          }
 
           // Pengecekan Otomatis Mode CCTV Pintar
           if (window.BenggalaCCTV && window.BenggalaCCTV.isActive && filtered.length > 0) {
@@ -716,6 +755,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const val = e.target.value;
     thresholdVal.textContent = `${val}%`;
     minConfidence = parseFloat(val) / 100;
+    if (window.BenggalaCockpit && typeof window.BenggalaCockpit.updateTelemetry === 'function') {
+      window.BenggalaCockpit.updateTelemetry({
+        predictions: currentPredictions,
+        threshold: parseInt(val),
+        pixelsPerCm: pixelsPerCm,
+        isRunning: isStreaming,
+        isCctv: window.BenggalaCCTV ? window.BenggalaCCTV.isActive : false
+      });
+    }
   });
 
   // Hubungkan tombol snapshot ke backend API
@@ -815,6 +863,16 @@ document.addEventListener('DOMContentLoaded', () => {
           cctvStatusBadge.textContent = 'OFF';
         }
         showToast('Mode CCTV Dinonaktifkan', 'info');
+      }
+
+      if (window.BenggalaCockpit && typeof window.BenggalaCockpit.updateTelemetry === 'function') {
+        window.BenggalaCockpit.updateTelemetry({
+          predictions: currentPredictions,
+          threshold: Math.round(minConfidence * 100),
+          pixelsPerCm: pixelsPerCm,
+          isRunning: isStreaming,
+          isCctv: window.BenggalaCCTV.isActive
+        });
       }
     });
 
@@ -1189,6 +1247,10 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
   }
+
+  // Expose global methods untuk modul Cockpit
+  window.loadHistory = loadHistory;
+  window.loadSettings = loadSettings;
 
   // Muat pengaturan awal dari database
   loadSettings();

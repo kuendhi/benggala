@@ -450,6 +450,9 @@ if (empty($_SESSION['csrf_token'])) {
   <!-- Modul Mode CCTV Pintar (Anti-Cache) -->
   <script src="assets/js/cctv.js?v=<?= filemtime('assets/js/cctv.js') ?>"></script>
 
+  <!-- Modul YOULO OS Cockpit (Anti-Cache) -->
+  <script src="assets/js/cockpit.js?v=<?= filemtime('assets/js/cockpit.js') ?>"></script>
+
   <!-- Detector Script (Anti-Cache) -->
   <script src="assets/js/detector.js?v=<?= filemtime('assets/js/detector.js') ?>"></script>
 </body>
