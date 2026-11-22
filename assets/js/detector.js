@@ -301,14 +301,15 @@ document.addEventListener('DOMContentLoaded', () => {
       stopCameraTracks();
     }
 
-    // Resolusi Tinggi Ideal: Full HD 1080p hingga 4K dengan frame rate halus
+    // Resolusi Tinggi Ideal: Full HD 1080p hingga 4K
+    // Note: frameRate tidak dipaksa ke 60 FPS agar sensor kamera tidak mempercepat shutter speed,
+    // sehingga auto-exposure / auto-gain dapat menyerap cahaya ruangan secara maksimal.
     const constraints = {
       audio: false,
       video: {
         facingMode: currentFacingMode,
         width: { ideal: 1920, max: 3840 },
-        height: { ideal: 1080, max: 2160 },
-        frameRate: { ideal: 60, min: 24 }
+        height: { ideal: 1080, max: 2160 }
       }
     };
 
@@ -323,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      // Optimasi kapabilitas hardware kamera (auto-focus, continuous exposure) jika didukung
+      // Optimasi kapabilitas hardware kamera (auto-focus, continuous white-balance) jika didukung
       try {
         const track = stream.getVideoTracks()[0];
         if (track && typeof track.getCapabilities === 'function') {
@@ -331,9 +332,6 @@ document.addEventListener('DOMContentLoaded', () => {
           const advanced = {};
           if (caps.focusMode && caps.focusMode.includes('continuous')) {
             advanced.focusMode = 'continuous';
-          }
-          if (caps.exposureMode && caps.exposureMode.includes('continuous')) {
-            advanced.exposureMode = 'continuous';
           }
           if (caps.whiteBalanceMode && caps.whiteBalanceMode.includes('continuous')) {
             advanced.whiteBalanceMode = 'continuous';
@@ -1357,14 +1355,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // =========================================================================
   const cameraBrightnessSlider = document.getElementById('cameraBrightnessSlider');
   const cameraBrightnessVal = document.getElementById('cameraBrightnessVal');
+  const btnBrightnessBoost = document.getElementById('btnBrightnessBoost');
 
   function applySavedBrightness() {
-    const saved = localStorage.getItem('benggala_cam_brightness') || '110';
+    const saved = localStorage.getItem('benggala_cam_brightness') || '125';
     if (cameraBrightnessSlider) cameraBrightnessSlider.value = saved;
     if (cameraBrightnessVal) cameraBrightnessVal.textContent = `${saved}%`;
     if (video) {
       const brightRatio = parseFloat(saved) / 100;
-      video.style.filter = `brightness(${brightRatio}) contrast(1.08) saturate(1.06)`;
+      video.style.filter = `brightness(${brightRatio}) contrast(1.02) saturate(1.08)`;
     }
   }
 
@@ -1374,9 +1373,31 @@ document.addEventListener('DOMContentLoaded', () => {
       if (cameraBrightnessVal) cameraBrightnessVal.textContent = `${val}%`;
       const brightRatio = parseFloat(val) / 100;
       if (video) {
-        video.style.filter = `brightness(${brightRatio}) contrast(1.08) saturate(1.06)`;
+        video.style.filter = `brightness(${brightRatio}) contrast(1.02) saturate(1.08)`;
       }
       localStorage.setItem('benggala_cam_brightness', val);
+    });
+  }
+
+  // Tombol Cepat Kecerahan Layar (110% -> 125% -> 145%)
+  if (btnBrightnessBoost) {
+    btnBrightnessBoost.addEventListener('click', () => {
+      const current = parseInt(localStorage.getItem('benggala_cam_brightness') || '125', 10);
+      let next = 125;
+      if (current < 125) {
+        next = 125;
+      } else if (current < 145) {
+        next = 145;
+      } else {
+        next = 110;
+      }
+      if (cameraBrightnessSlider) cameraBrightnessSlider.value = next;
+      if (cameraBrightnessVal) cameraBrightnessVal.textContent = `${next}%`;
+      if (video) {
+        video.style.filter = `brightness(${next / 100}) contrast(1.02) saturate(1.08)`;
+      }
+      localStorage.setItem('benggala_cam_brightness', next.toString());
+      showToast(`☀️ Kecerahan Layar: ${next}%`, 'info');
     });
   }
 

@@ -301,8 +301,8 @@ html, body {
   max-height: 100%;
   object-fit: contain;
   display: block;
-  /* Visual Monitor Utama: Layar Cerah, Kontras Tajam & Resolusi Tinggi */
-  filter: brightness(1.10) contrast(1.08) saturate(1.06);
+  /* Visual Monitor Utama: Layar Cerah Alami, Bayangan Tidak Hancur, Warna Hidup */
+  filter: brightness(1.22) contrast(1.02) saturate(1.08);
   image-rendering: -webkit-optimize-contrast;
   image-rendering: crisp-edges;
   transform: translateZ(0);
