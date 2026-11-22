@@ -1,0 +1,38 @@
+# ==============================================================================
+# Uploads Hardening - Anti Webshell & Anti Execution
+# ==============================================================================
+
+# 1. Matikan Directory Listing
+Options -Indexes
+
+# 2. Matikan Engine Eksekusi PHP (Mod PHP 5, 7, 8)
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+
+# 3. Blokir Akses ke File Script Eksekusi (.php, .phtml, .phar, cgi, dll)
+<FilesMatch "(?i)\.(php|phtml|phar|php3|php4|php5|php7|php8|phps|cgi|pl|py)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# 4. Hanya Izinkan File Gambar dan Metadata (.jpg, .jpeg, .png, .webp, .gitkeep)
+<FilesMatch "(?i)\.(jpg|jpeg|png|webp|gitkeep)$">
+    <IfModule mod_authz_core.c>
+        Require all granted
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Allow from all
+    </IfModule>
+</FilesMatch>

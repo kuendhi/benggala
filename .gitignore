@@ -1,5 +1,7 @@
 .env
 uploads/snapshots/*.jpg
 uploads/snapshots/*.png
+uploads/snapshots/*.log
+uploads/snapshots/*.json
 .DS_Store
 Thumbs.db
