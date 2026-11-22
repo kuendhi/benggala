@@ -44,6 +44,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnExportCsv = document.getElementById('btnExportCsv');
   const historyCountBadge = document.getElementById('historyCountBadge');
 
+  const cameraStage = document.getElementById('cameraStage');
+  const hudZoomControl = document.getElementById('hudZoomControl');
+  const zoomSlider = document.getElementById('zoomSlider');
+  const btnZoomIn = document.getElementById('btnZoomIn');
+  const btnZoomOut = document.getElementById('btnZoomOut');
+  const zoomValue = document.getElementById('zoomValue');
+
   // --- State Variables ---
   let model = null;
   let stream = null;
@@ -55,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentPredictions = [];
   let lastPredictions = [];
   let pixelsPerCm = parseFloat(localStorage.getItem('benggala_px_per_cm')) || null;
+  let currentZoom = 1.0;
 
   // Palet warna kontras untuk bounding box per class
   const classColors = [
@@ -302,6 +310,55 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
       }
+    }
+  }
+
+  // Sinkronisasi dimensi canvas pada loadedmetadata & window resize
+  video.addEventListener('loadedmetadata', syncCanvasDimensions);
+  window.addEventListener('resize', syncCanvasDimensions);
+
+  // =========================================================================
+  // Smooth Zoom Controller (Hardware & Digital Zoom)
+  // =========================================================================
+  function applyCameraZoom(level) {
+    level = Math.max(1.0, Math.min(3.0, parseFloat(level) || 1.0));
+    currentZoom = level;
+
+    // 1. Coba Hardware Zoom jika didukung oleh video track kamera
+    let hardwareZoomSuccess = false;
+    const track = stream ? stream.getVideoTracks()[0] : null;
+    if (track && typeof track.getCapabilities === 'function') {
+      try {
+        const caps = track.getCapabilities();
+        if (caps && 'zoom' in caps) {
+          const minZ = caps.zoom.min || 1;
+          const maxZ = caps.zoom.max || 3;
+          const mappedZoom = minZ + ((level - 1.0) / 2.0) * (maxZ - minZ);
+          track.applyConstraints({
+            advanced: [{ zoom: mappedZoom }]
+          }).then(() => {
+            if (cameraStage) cameraStage.style.transform = 'scale(1)';
+          }).catch(() => {
+            if (cameraStage) cameraStage.style.transform = `scale(${level})`;
+          });
+          hardwareZoomSuccess = true;
+        }
+      } catch (err) {
+        hardwareZoomSuccess = false;
+      }
+    }
+
+    // 2. Fallback Digital Smooth Zoom pada cameraStage jika tidak ada hardware zoom
+    if (!hardwareZoomSuccess && cameraStage) {
+      cameraStage.style.transform = `scale(${level})`;
+    }
+
+    // 3. Perbarui UI Zoom Slider & Badge Nilai
+    if (zoomValue) {
+      zoomValue.textContent = `${level.toFixed(1)}x`;
+    }
+    if (zoomSlider && Math.abs(parseFloat(zoomSlider.value) - level) > 0.02) {
+      zoomSlider.value = level.toString();
     }
   }
 
@@ -818,6 +875,76 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Inisialisasi status kalibrasi dari localStorage
   updateCalibrationUI();
+
+  // =========================================================================
+  // Event Listeners Smooth Zoom (Slider, Tombol Step, Mouse Wheel, Touch Pinch)
+  // =========================================================================
+  if (zoomSlider) {
+    zoomSlider.addEventListener('input', (e) => {
+      applyCameraZoom(parseFloat(e.target.value));
+    });
+  }
+
+  if (btnZoomIn) {
+    btnZoomIn.addEventListener('click', () => {
+      applyCameraZoom(currentZoom + 0.2);
+    });
+  }
+
+  if (btnZoomOut) {
+    btnZoomOut.addEventListener('click', () => {
+      applyCameraZoom(currentZoom - 0.2);
+    });
+  }
+
+  if (zoomValue) {
+    zoomValue.addEventListener('click', () => {
+      applyCameraZoom(1.0);
+      showToast('Zoom di-reset ke 1.0x', 'info');
+    });
+  }
+
+  // Dukungan Mouse Wheel Zoom (PC) pada area Viewport
+  const viewportEl = document.querySelector('.cockpit-viewport');
+  if (viewportEl) {
+    viewportEl.addEventListener('wheel', (e) => {
+      if (e.target.closest('.cockpit-panel') || e.target.closest('.cockpit-dock') || e.target.closest('#hudZoomControl')) {
+        return;
+      }
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 0.1 : -0.1;
+      applyCameraZoom(currentZoom + delta);
+    }, { passive: false });
+
+    // Dukungan Pinch-to-Zoom 2 Jari (HP)
+    let initialPinchDist = null;
+    let initialPinchZoom = 1.0;
+
+    viewportEl.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2 && !e.target.closest('.cockpit-panel')) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        initialPinchDist = Math.hypot(dx, dy);
+        initialPinchZoom = currentZoom;
+      }
+    }, { passive: true });
+
+    viewportEl.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2 && initialPinchDist && !e.target.closest('.cockpit-panel')) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const currentDist = Math.hypot(dx, dy);
+        const scaleRatio = currentDist / initialPinchDist;
+        applyCameraZoom(initialPinchZoom * scaleRatio);
+      }
+    }, { passive: true });
+
+    viewportEl.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) {
+        initialPinchDist = null;
+      }
+    }, { passive: true });
+  }
 
   // =========================================================================
   // 10. Event Listeners Mode CCTV Pintar

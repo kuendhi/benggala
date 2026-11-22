@@ -70,8 +70,11 @@ if (empty($_SESSION['csrf_token'])) {
     <!-- 2. Viewport Full-Bleed (.cockpit-viewport) -->
     <main class="cockpit-viewport">
       <div class="camera-container" id="cameraContainer">
-        <video id="webcam" autoplay playsinline muted></video>
-        <canvas id="overlay"></canvas>
+        <!-- Stage Pembungkus Kamera untuk Framing Contain & Smooth Zoom -->
+        <div id="cameraStage" class="camera-stage">
+          <video id="webcam" autoplay playsinline muted></video>
+          <canvas id="overlay"></canvas>
+        </div>
 
         <!-- Starfield animasi latar saat kamera mati -->
         <div class="viewport-stars" id="viewportStars"></div>
@@ -413,6 +416,14 @@ if (empty($_SESSION['csrf_token'])) {
         </div>
       </div>
     </section>
+
+    <!-- Kontrol Smooth Zoom Melayang (.hud-zoom-control) -->
+    <div class="hud-zoom-control" id="hudZoomControl">
+      <button type="button" id="btnZoomOut" class="btn-zoom-step" title="Zoom Out (−0.2x)">−</button>
+      <input type="range" id="zoomSlider" min="1" max="3" step="0.05" value="1" title="Geser Zoom (1.0x - 3.0x)">
+      <button type="button" id="btnZoomIn" class="btn-zoom-step" title="Zoom In (+0.2x)">+</button>
+      <span id="zoomValue" class="zoom-value-badge" title="Klik untuk Reset Zoom (1.0x)">1.0x</span>
+    </div>
 
     <!-- 4. Dock Kapsul Melayang Bawah (.cockpit-dock) -->
     <nav class="cockpit-dock" id="cockpitDock">

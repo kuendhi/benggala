@@ -273,14 +273,29 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Stage Pembungkus Kamera untuk Framing Contain & Smooth Zoom */
+.camera-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: center center;
+  transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
 }
 
 #webcam, #overlay {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
   display: block;
 }
 
@@ -819,8 +834,100 @@ html, body {
 }
 
 /* ==========================================================================
-   10. Floating Capsule Dock (.cockpit-dock)
+   10. Floating Capsule Dock (.cockpit-dock) & Zoom Control
    ========================================================================== */
+.hud-zoom-control {
+  position: fixed;
+  bottom: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 42;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: rgba(10, 22, 40, 0.72);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: 999px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 12px rgba(0, 229, 255, 0.12);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.btn-zoom-step {
+  background: rgba(0, 229, 255, 0.1);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  color: var(--cyan);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.btn-zoom-step:hover {
+  background: var(--cyan);
+  color: #020617;
+  box-shadow: 0 0 8px var(--cyan);
+  transform: scale(1.1);
+}
+
+.btn-zoom-step:active {
+  transform: scale(0.95);
+}
+
+#zoomSlider {
+  -webkit-appearance: none;
+  width: 110px;
+  height: 4px;
+  background: rgba(15, 23, 42, 0.85);
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  outline: none;
+}
+
+#zoomSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--cyan);
+  cursor: pointer;
+  box-shadow: 0 0 8px var(--cyan);
+  transition: transform 0.1s ease;
+}
+
+#zoomSlider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.zoom-value-badge {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--cyan);
+  background: rgba(0, 229, 255, 0.15);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.zoom-value-badge:hover {
+  background: var(--cyan);
+  color: #020617;
+  box-shadow: 0 0 8px var(--cyan);
+}
+
 .cockpit-dock {
   position: fixed;
   bottom: 14px;
@@ -1528,7 +1635,8 @@ body.mode-quiet .hud-header,
 body.mode-quiet .hud-radar,
 body.mode-quiet .hud-telemetry,
 body.mode-quiet .hud-crosshair,
-body.mode-quiet .hud-corner-frame {
+body.mode-quiet .hud-corner-frame,
+body.mode-quiet .hud-zoom-control {
   opacity: 0 !important;
   pointer-events: none !important;
   transform: translateY(-8px);
@@ -1636,6 +1744,17 @@ body.mode-emergency .mission-status-badge {
 
   .history-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* Smooth Zoom Compact di Layar HP */
+  .hud-zoom-control {
+    bottom: 64px;
+    padding: 3px 8px;
+    gap: 6px;
+  }
+
+  #zoomSlider {
+    width: 75px;
   }
 
   /* Dock Kapsul Super Rapat: 6 Tombol Pas dalam 1 Baris */
