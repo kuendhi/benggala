@@ -190,6 +190,19 @@ if (empty($_SESSION['csrf_token'])) {
           <input type="range" id="cameraBrightnessSlider" min="90" max="150" value="110" step="5" style="width: 100%;" title="Atur Kecerahan Layar Monitor Utama">
         </div>
 
+        <!-- Kontrol Orientasi & Rasio Layar (Widescreen 16:9 / Portrait 9:16 / Auto) -->
+        <div class="form-group" style="margin: 0.6rem 0;">
+          <label style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">
+            <span>📐 Orientasi Layar Monitor</span>
+            <span id="cameraOrientationVal" style="color: var(--cyan); font-weight: 700;">Widescreen (16:9)</span>
+          </label>
+          <div class="orient-btn-group" style="display: flex; gap: 6px;">
+            <button type="button" class="btn btn-secondary btn-orient active" data-orient="widescreen" style="flex: 1; padding: 6px 4px; font-size: 0.74rem;" title="Layar Lebar Horizontal 16:9 (Maksimal PC)">🖥️ Widescreen</button>
+            <button type="button" class="btn btn-secondary btn-orient" data-orient="portrait" style="flex: 1; padding: 6px 4px; font-size: 0.74rem;" title="Layar Tegak Vertikal 9:16 (Maksimal PC)">📱 Portrait</button>
+            <button type="button" class="btn btn-secondary btn-orient" data-orient="auto" style="flex: 1; padding: 6px 4px; font-size: 0.74rem;" title="Sesuai Sensor Asli Kamera">🔄 Auto</button>
+          </div>
+        </div>
+
         <div class="action-divider"></div>
         <button type="button" id="btnSnapshot" class="btn btn-action" disabled>
           📸 Ambil Snapshot
@@ -463,7 +476,7 @@ if (empty($_SESSION['csrf_token'])) {
     <!-- Kontrol Smooth Zoom, Kecerahan & Mode Layar Melayang (.hud-zoom-control) -->
     <div class="hud-zoom-control" id="hudZoomControl">
       <button type="button" id="btnBrightnessBoost" class="btn-zoom-step" title="Kecerahan Layar Instan (Klik untuk ganti 110% / 125% / 145%)">☀️</button>
-      <button type="button" id="btnDisplayMode" class="btn-zoom-step" title="Mode Tampilan Layar (Klik: Proporsional Maksimal / Layar Penuh)">⛶</button>
+      <button type="button" id="btnOrientation" class="btn-zoom-step" title="Orientasi Layar: Widescreen (16:9) / Portrait (9:16) / Auto">🖥️</button>
       <button type="button" id="btnZoomOut" class="btn-zoom-step" title="Zoom Out (−0.2x)">−</button>
       <input type="range" id="zoomSlider" min="1" max="3" step="0.05" value="1" title="Geser Zoom (1.0x - 3.0x)">
       <button type="button" id="btnZoomIn" class="btn-zoom-step" title="Zoom In (+0.2x)">+</button>

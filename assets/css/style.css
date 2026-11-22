@@ -289,12 +289,24 @@ html, body {
   align-items: center;
   justify-content: center;
   transform-origin: center center;
-  transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: transform;
+  transition: width 0.25s ease, height 0.25s ease, transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, width, height;
 }
 
 .camera-stage.active-stream {
   box-shadow: none; /* Bersih tanpa bayangan/halo biru inset pada frame kamera */
+}
+
+/* Framing Portrait Taktis di Layar PC */
+.camera-stage.is-portrait {
+  border-left: 1.5px solid rgba(0, 229, 255, 0.45);
+  border-right: 1.5px solid rgba(0, 229, 255, 0.45);
+  box-shadow: 0 0 35px rgba(0, 229, 255, 0.22), inset 0 0 25px rgba(0, 229, 255, 0.08);
+}
+
+.camera-stage.is-widescreen {
+  border: none;
+  box-shadow: none;
 }
 
 #webcam, #overlay {
@@ -304,6 +316,7 @@ html, body {
   width: 100%;
   height: 100%;
   display: block;
+  object-fit: cover;
 }
 
 #webcam {
@@ -1184,6 +1197,14 @@ html, body {
   background: rgba(0, 229, 255, 0.15);
   border-color: var(--cyan);
   color: var(--cyan);
+}
+
+.btn-orient.active {
+  background: rgba(0, 229, 255, 0.25) !important;
+  border-color: var(--cyan) !important;
+  color: var(--cyan) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.4);
 }
 
 .btn-action {

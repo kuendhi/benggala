@@ -190,19 +190,104 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  /**
+   * Mengonversi koordinat client (layar) ke koordinat internal canvas (0..canvas.width, 0..canvas.height)
+   * dengan memperhitungkan penyesuaian object-fit: cover dan rasio aspek panggung kamera (Widescreen/Portrait).
+   */
+  function clientToCanvasCoords(clientX, clientY) {
+    if (!overlay || !video || !video.videoWidth || !video.videoHeight) {
+      return { x: 0, y: 0 };
+    }
+
+    const rect = overlay.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return { x: 0, y: 0 };
+
+    const srcW = video.videoWidth;
+    const srcH = video.videoHeight;
+    const boxW = rect.width;
+    const boxH = rect.height;
+
+    const srcAspect = srcW / srcH;
+    const boxAspect = boxW / boxH;
+
+    let scale, offsetX = 0, offsetY = 0;
+
+    if (boxAspect > srcAspect) {
+      scale = boxW / srcW;
+      const renderedH = srcH * scale;
+      offsetY = (renderedH - boxH) / 2;
+      const relX = clientX - rect.left;
+      const relY = (clientY - rect.top) + offsetY;
+      return {
+        x: relX / scale,
+        y: relY / scale
+      };
+    } else {
+      scale = boxH / srcH;
+      const renderedW = srcW * scale;
+      offsetX = (renderedW - boxW) / 2;
+      const relX = (clientX - rect.left) + offsetX;
+      const relY = clientY - rect.top;
+      return {
+        x: relX / scale,
+        y: relY / scale
+      };
+    }
+  }
+
+  /**
+   * Mengonversi koordinat internal canvas ke koordinat layar presisi untuk pointer #focusReticle
+   */
+  function canvasToClientCoords(canvasX, canvasY) {
+    if (!overlay || !video || !video.videoWidth || !video.videoHeight) {
+      return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    }
+
+    const rect = overlay.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    }
+
+    const srcW = video.videoWidth;
+    const srcH = video.videoHeight;
+    const boxW = rect.width;
+    const boxH = rect.height;
+
+    const srcAspect = srcW / srcH;
+    const boxAspect = boxW / boxH;
+
+    let scale, offsetX = 0, offsetY = 0;
+
+    if (boxAspect > srcAspect) {
+      scale = boxW / srcW;
+      const renderedH = srcH * scale;
+      offsetY = (renderedH - boxH) / 2;
+      return {
+        x: rect.left + canvasX * scale,
+        y: rect.top + canvasY * scale - offsetY
+      };
+    } else {
+      scale = boxH / srcH;
+      const renderedW = srcW * scale;
+      offsetX = (renderedW - boxW) / 2;
+      return {
+        x: rect.left + canvasX * scale - offsetX,
+        y: rect.top + canvasY * scale
+      };
+    }
+  }
+
   function handleDoubleTapFocus(clientX, clientY) {
     if (!overlay || !canvas) return;
 
-    // Konversi koordinat presisi dari layar ke koordinat internal canvas (anti-geser saat zoom)
-    const rect = overlay.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
+    // Konversi koordinat presisi dari layar ke koordinat internal canvas (anti-geser saat zoom & widescreen)
+    const tapCoords = clientToCanvasCoords(clientX, clientY);
+    const tapX = tapCoords.x;
+    const tapY = tapCoords.y;
 
-    const tapX = (clientX - rect.left) * (overlay.width / rect.width);
-    const tapY = (clientY - rect.top) * (overlay.height / rect.height);
-
-    // Cek apakah (tapX, tapY) mengenai salah satu bbox objek dari lastPredictions (toleransi margin 15px)
+    // Cek apakah (tapX, tapY) mengenai salah satu bbox objek dari lastPredictions (toleransi margin 20px)
     let hit = null;
-    const tolerance = 15;
+    const tolerance = 20;
 
     if (lastPredictions && lastPredictions.length > 0) {
       for (const pred of lastPredictions) {
@@ -232,10 +317,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const objName = typeof window.translateLabel === 'function' ? window.translateLabel(hit.class) : hit.class;
       showToast(`🎯 Target [${objName}] Terpilih! Memulai Kuncian & Auto-Snapshot...`, 'success');
 
-      // Posisikan #focusReticle ke koordinat layar objek
-      const screenX = rect.left + bboxCenterX * (rect.width / overlay.width);
-      const screenY = rect.top + bboxCenterY * (rect.height / overlay.height);
-      updateFocusReticlePosition(screenX, screenY);
+      // Posisikan #focusReticle ke koordinat layar objek secara presisi
+      const screenCoords = canvasToClientCoords(bboxCenterX, bboxCenterY);
+      updateFocusReticlePosition(screenCoords.x, screenCoords.y);
 
       // Tampilkan tombol reset fokus
       if (btnResetFocus) {
@@ -297,12 +381,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Resolusi Tinggi Ideal: Full HD 1080p hingga 4K
-    // Deteksi lingkungan: di HP gunakan facingMode, di PC maksimalkan resolusi sensor
+    // Sesuaikan rasio dan dimensi ideal berdasarkan orientasi yang dipilih
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
+    let targetIdealW = 1920;
+    let targetIdealH = 1080;
+    let targetAspect = 1.7777777778; // 16:9 Widescreen
+
+    if (cameraOrientation === 'portrait') {
+      targetIdealW = 1080;
+      targetIdealH = 1920;
+      targetAspect = 0.5625; // 9:16 Portrait
+    }
+
     const primaryVideoConstraints = {
-      width: { ideal: 1920, max: 3840 },
-      height: { ideal: 1080, max: 2160 }
+      width: { ideal: targetIdealW, max: 3840 },
+      height: { ideal: targetIdealH, max: 2160 },
+      aspectRatio: { ideal: targetAspect }
     };
     if (isMobileDevice) {
       primaryVideoConstraints.facingMode = { ideal: currentFacingMode };
@@ -318,8 +413,9 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn('Resolusi 1080p tidak dapat dipenuhi secara kaku, mencoba fallback resolusi fleksibel:', errConstraint);
         try {
           const fallbackConstraints = {
-            width: { ideal: 1280, min: 640 },
-            height: { ideal: 720, min: 480 }
+            width: { ideal: (cameraOrientation === 'portrait' ? 720 : 1280), min: 480 },
+            height: { ideal: (cameraOrientation === 'portrait' ? 1280 : 720), min: 480 },
+            aspectRatio: { ideal: targetAspect }
           };
           if (isMobileDevice) {
             fallbackConstraints.facingMode = { ideal: currentFacingMode };
@@ -507,7 +603,7 @@ document.addEventListener('DOMContentLoaded', () => {
     cameraError.style.display = 'none';
   }
 
-  let cameraDisplayMode = localStorage.getItem('benggala_cam_display_mode') || 'fit'; // 'fit' (proporsional maksimal) | 'fill' (layar penuh)
+  let cameraOrientation = localStorage.getItem('benggala_cam_orientation') || 'widescreen'; // 'widescreen' (16:9) | 'portrait' (9:16) | 'auto'
 
   function syncCanvasDimensions() {
     if (!video || !canvas) return;
@@ -518,7 +614,7 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.height = video.videoHeight;
       }
 
-      // Maksimalkan dimensi tampilan cameraStage agar memenuhi layar PC dan responsif di HP
+      // Maksimalkan dimensi tampilan cameraStage sesuai orientasi (Widescreen 16:9 / Portrait 9:16 / Auto)
       const container = document.getElementById('cameraContainer');
       const stage = document.getElementById('cameraStage');
       if (container && stage) {
@@ -531,23 +627,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
           let targetW, targetH;
 
-          if (cameraDisplayMode === 'fill') {
-            // Mode Layar Penuh (Fill / Cover): Penuhi seluruh viewport tanpa ada bar kosong
-            if (contAspect > videoAspect) {
-              targetW = contW;
-              targetH = contW / videoAspect;
-            } else {
+          if (cameraOrientation === 'widescreen') {
+            // Mode Widescreen (16:9 Landscape): Maksimalkan layar PC secara horizontal & vertikal
+            const wideAspect = 16 / 9; // 1.7778
+            stage.classList.remove('is-portrait');
+            stage.classList.add('is-widescreen');
+
+            if (contAspect >= wideAspect) {
+              // Monitor PC Widescreen / Ultrawide: Penuhi seluruh tinggi & lebar monitor penuh
               targetH = contH;
-              targetW = contH * videoAspect;
+              targetW = Math.max(contW, contH * wideAspect);
+            } else {
+              targetW = contW;
+              targetH = contW / wideAspect;
+            }
+          } else if (cameraOrientation === 'portrait') {
+            // Mode Portrait (9:16 Tegak): Maksimalkan tinggi monitor PC dengan rasio tegak di tengah
+            const portAspect = 9 / 16; // 0.5625
+            stage.classList.remove('is-widescreen');
+            stage.classList.add('is-portrait');
+
+            if (contAspect <= portAspect) {
+              // Di HP: Penuhi seluruh lebar & tinggi HP
+              targetW = contW;
+              targetH = contH;
+            } else {
+              // Di PC: Tinggi 100% monitor, lebar proporsional 9:16 di tengah
+              targetH = contH;
+              targetW = Math.round(contH * portAspect);
             }
           } else {
-            // Mode Proporsional Maksimal (Fit): Maksimalkan sebesar mungkin di layar tanpa terpotong
+            // Mode Auto: Mengikuti rasio asli sensor kamera
+            stage.classList.remove('is-widescreen', 'is-portrait');
             if (contAspect > videoAspect) {
-              // PC Widescreen: Maksimalkan tinggi monitor 100%, lebarkan proporsional
               targetH = contH;
               targetW = contH * videoAspect;
             } else {
-              // Layar HP: Maksimalkan lebar layar HP 100%, tinggikan proporsional
               targetW = contW;
               targetH = contW / videoAspect;
             }
@@ -684,24 +799,18 @@ document.addEventListener('DOMContentLoaded', () => {
               focusState.canvasX += (targetMidX - focusState.canvasX) * TRACK_LERP;
               focusState.canvasY += (targetMidY - focusState.canvasY) * TRACK_LERP;
 
-              // Geser pointer #focusReticle mengikuti posisi target di layar
-              const rect = overlay.getBoundingClientRect();
-              if (rect.width > 0 && rect.height > 0) {
-                const screenX = rect.left + focusState.canvasX * (rect.width / overlay.width);
-                const screenY = rect.top + focusState.canvasY * (rect.height / overlay.height);
-                updateFocusReticlePosition(screenX, screenY);
-              }
+              // Geser pointer #focusReticle mengikuti posisi target di layar secara presisi
+              const screenCoords = canvasToClientCoords(focusState.canvasX, focusState.canvasY);
+              updateFocusReticlePosition(screenCoords.x, screenCoords.y);
 
               // Isolasi visual & auto-lock: hanya objek terpilih yang dikunci dan difoto otomatis!
               displayPredictions = [focusedObject];
               autoLockPredictions = [focusedObject];
             } else {
               // Jika target tidak terdeteksi di frame ini, tetap reposisi reticle jika canvas digeser/di-zoom
-              const rect = overlay.getBoundingClientRect();
-              if (rect.width > 0 && rect.height > 0 && focusState.canvasX !== null && focusState.canvasY !== null) {
-                const screenX = rect.left + focusState.canvasX * (rect.width / overlay.width);
-                const screenY = rect.top + focusState.canvasY * (rect.height / overlay.height);
-                updateFocusReticlePosition(screenX, screenY);
+              if (focusState.canvasX !== null && focusState.canvasY !== null) {
+                const screenCoords = canvasToClientCoords(focusState.canvasX, focusState.canvasY);
+                updateFocusReticlePosition(screenCoords.x, screenCoords.y);
               }
               displayPredictions = [];
               autoLockPredictions = [];
@@ -1483,32 +1592,95 @@ document.addEventListener('DOMContentLoaded', () => {
   // Terapkan pengaturan kecerahan awal
   applySavedBrightness();
 
-  // Tombol Toggle Mode Tampilan Layar (Proporsional Maksimal <-> Layar Penuh)
-  const btnDisplayMode = document.getElementById('btnDisplayMode');
-  if (btnDisplayMode) {
-    btnDisplayMode.textContent = (cameraDisplayMode === 'fill') ? '🔲' : '⛶';
-    btnDisplayMode.title = (cameraDisplayMode === 'fill')
-      ? 'Mode Layar: Penuh Edge-to-Edge (Klik untuk Proporsional Maksimal)'
-      : 'Mode Layar: Proporsional Maksimal (Klik untuk Layar Penuh)';
+  // =========================================================================
+  // Kontrol Orientasi Layar (Widescreen 16:9 / Portrait 9:16 / Auto)
+  // =========================================================================
+  const btnOrientation = document.getElementById('btnOrientation');
+  const cameraOrientationVal = document.getElementById('cameraOrientationVal');
+  const orientBtns = document.querySelectorAll('.btn-orient');
 
-    btnDisplayMode.addEventListener('click', () => {
-      cameraDisplayMode = (cameraDisplayMode === 'fill') ? 'fit' : 'fill';
-      localStorage.setItem('benggala_cam_display_mode', cameraDisplayMode);
+  const orientIcons = {
+    widescreen: '🖥️',
+    portrait: '📱',
+    auto: '🔄'
+  };
 
-      btnDisplayMode.textContent = (cameraDisplayMode === 'fill') ? '🔲' : '⛶';
-      btnDisplayMode.title = (cameraDisplayMode === 'fill')
-        ? 'Mode Layar: Penuh Edge-to-Edge (Klik untuk Proporsional Maksimal)'
-        : 'Mode Layar: Proporsional Maksimal (Klik untuk Layar Penuh)';
+  const orientLabels = {
+    widescreen: 'Widescreen (16:9)',
+    portrait: 'Portrait (9:16)',
+    auto: 'Auto (Sensor Asli)'
+  };
 
-      syncCanvasDimensions();
-      showToast(
-        (cameraDisplayMode === 'fill')
-          ? '⛶ Mode Layar: Penuh (Edge-to-Edge)'
-          : '⛶ Mode Layar: Proporsional Maksimal',
-        'info'
-      );
+  function setCameraOrientation(mode, restartStream = false) {
+    if (!['widescreen', 'portrait', 'auto'].includes(mode)) {
+      mode = 'widescreen';
+    }
+    cameraOrientation = mode;
+    localStorage.setItem('benggala_cam_orientation', mode);
+
+    if (btnOrientation) {
+      btnOrientation.textContent = orientIcons[mode] || '🖥️';
+      btnOrientation.title = `Orientasi Layar: ${orientLabels[mode]} (Klik untuk ganti)`;
+    }
+
+    if (cameraOrientationVal) {
+      cameraOrientationVal.textContent = orientLabels[mode] || 'Widescreen (16:9)';
+    }
+
+    orientBtns.forEach(btn => {
+      if (btn.getAttribute('data-orient') === mode) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+
+    syncCanvasDimensions();
+
+    showToast(`📐 Orientasi Layar: ${orientLabels[mode]}`, 'info');
+
+    // Jika kamera sedang streaming dan restartStream diminta
+    if (restartStream && isStreaming) {
+      startCamera();
+    }
+  }
+
+  // Terapkan status awal orientasi
+  if (btnOrientation) {
+    btnOrientation.textContent = orientIcons[cameraOrientation] || '🖥️';
+    btnOrientation.title = `Orientasi Layar: ${orientLabels[cameraOrientation]} (Klik untuk ganti)`;
+
+    btnOrientation.addEventListener('click', () => {
+      let nextMode = 'widescreen';
+      if (cameraOrientation === 'widescreen') {
+        nextMode = 'portrait';
+      } else if (cameraOrientation === 'portrait') {
+        nextMode = 'auto';
+      } else {
+        nextMode = 'widescreen';
+      }
+      setCameraOrientation(nextMode, false);
     });
   }
+
+  if (cameraOrientationVal) {
+    cameraOrientationVal.textContent = orientLabels[cameraOrientation] || 'Widescreen (16:9)';
+  }
+
+  orientBtns.forEach(btn => {
+    if (btn.getAttribute('data-orient') === cameraOrientation) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+
+    btn.addEventListener('click', () => {
+      const mode = btn.getAttribute('data-orient');
+      if (mode) {
+        setCameraOrientation(mode, false);
+      }
+    });
+  });
 
   // =========================================================================
   // Event Listeners Smooth Zoom (Slider, Tombol Step, Mouse Wheel, Touch Pinch)
