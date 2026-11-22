@@ -59,6 +59,21 @@
     },
 
     /**
+     * Reset status kuncian dan timer target auto-lock (Task 15)
+     */
+    reset: function () {
+      this.state = 'IDLE';
+      this.trackingTarget = null;
+      this.lockStartTime = 0;
+      this.lastLockedTime = 0;
+      this.lastMidPoint = { x: 0, y: 0 };
+      this.hasTriggered = false;
+      this.smoothBox = { x: 0, y: 0, w: 0, h: 0, initialized: false };
+      this.currentProgress = 0;
+      this.currentLabel = '';
+    },
+
+    /**
      * Update state auto-lock setiap frame deteksi
      * @param {Array} predictions Array objek terdeteksi dari model COCO-SSD
      * @param {number} now Timestamp saat ini (performance.now() atau Date.now())

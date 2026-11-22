@@ -79,6 +79,16 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastStatsUpdate = 0;
   const STATS_THROTTLE_MS = 250; // Batasi update DOM statistik live max 4x/detik (anti layout thrashing)
 
+  // State Fokus Kustom (Task 15)
+  const focusState = {
+    active: false,
+    canvasX: null,
+    canvasY: null,
+    targetClass: null
+  };
+  const focusReticle = document.getElementById('focusReticle');
+  const btnResetFocus = document.getElementById('btnResetFocus');
+
   // Palet warna kontras untuk bounding box per class
   const classColors = [
     '#00f0ff', '#10b981', '#f59e0b', '#ec4899', 
@@ -141,6 +151,110 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       calibrationStatus.textContent = 'Belum dikalibrasi (mode piksel)';
       calibrationStatus.classList.remove('calibrated');
+    }
+  }
+
+  // =========================================================================
+  // Helper & Fungsi Kontrol Titik Fokus Dinamis (Task 15)
+  // =========================================================================
+  function updateFocusReticlePosition(screenX, screenY) {
+    if (!focusReticle) return;
+    const viewport = document.querySelector('.cockpit-viewport');
+    if (!viewport) return;
+    const vpRect = viewport.getBoundingClientRect();
+    const leftPx = screenX - vpRect.left;
+    const topPx = screenY - vpRect.top;
+    focusReticle.style.left = `${leftPx}px`;
+    focusReticle.style.top = `${topPx}px`;
+    focusReticle.classList.add('is-custom-focus');
+  }
+
+  function resetCameraFocus() {
+    focusState.active = false;
+    focusState.canvasX = null;
+    focusState.canvasY = null;
+    focusState.targetClass = null;
+
+    if (focusReticle) {
+      focusReticle.style.left = '50%';
+      focusReticle.style.top = '50%';
+      focusReticle.classList.remove('is-custom-focus');
+    }
+
+    if (btnResetFocus) {
+      btnResetFocus.classList.add('hidden');
+    }
+
+    if (window.BenggalaAutoLock && typeof window.BenggalaAutoLock.reset === 'function') {
+      window.BenggalaAutoLock.reset();
+    }
+  }
+
+  function handleDoubleTapFocus(clientX, clientY) {
+    if (!overlay || !canvas) return;
+
+    // Konversi koordinat presisi dari layar ke koordinat internal canvas (anti-geser saat zoom)
+    const rect = overlay.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+
+    const tapX = (clientX - rect.left) * (overlay.width / rect.width);
+    const tapY = (clientY - rect.top) * (overlay.height / rect.height);
+
+    // Cek apakah (tapX, tapY) mengenai salah satu bbox objek dari lastPredictions (toleransi margin 15px)
+    let hit = null;
+    const tolerance = 15;
+
+    if (lastPredictions && lastPredictions.length > 0) {
+      for (const pred of lastPredictions) {
+        const [bx, by, bw, bh] = pred.bbox;
+        if (
+          tapX >= (bx - tolerance) &&
+          tapX <= (bx + bw + tolerance) &&
+          tapY >= (by - tolerance) &&
+          tapY <= (by + bh + tolerance)
+        ) {
+          hit = pred;
+          break;
+        }
+      }
+    }
+
+    if (hit) {
+      const [bx, by, bw, bh] = hit.bbox;
+      const bboxCenterX = bx + bw / 2;
+      const bboxCenterY = by + bh / 2;
+
+      focusState.active = true;
+      focusState.canvasX = bboxCenterX;
+      focusState.canvasY = bboxCenterY;
+      focusState.targetClass = hit.class;
+
+      const objName = typeof window.translateLabel === 'function' ? window.translateLabel(hit.class) : hit.class;
+      showToast(`🎯 Fokus terkunci pada: ${objName}`, 'success');
+
+      // Posisikan #focusReticle ke koordinat layar objek
+      const screenX = rect.left + bboxCenterX * (rect.width / overlay.width);
+      const screenY = rect.top + bboxCenterY * (rect.height / overlay.height);
+      updateFocusReticlePosition(screenX, screenY);
+    } else {
+      // Menyentuh area kosong
+      focusState.active = true;
+      focusState.canvasX = tapX;
+      focusState.canvasY = tapY;
+      focusState.targetClass = null;
+
+      showToast('🎯 Titik fokus dipindahkan', 'info');
+      updateFocusReticlePosition(clientX, clientY);
+    }
+
+    // Tampilkan tombol reset fokus
+    if (btnResetFocus) {
+      btnResetFocus.classList.remove('hidden');
+    }
+
+    // Reset timer Auto-Lock agar siklus kuncian dimulai ulang dengan bersih
+    if (window.BenggalaAutoLock && typeof window.BenggalaAutoLock.reset === 'function') {
+      window.BenggalaAutoLock.reset();
     }
   }
 
@@ -266,6 +380,8 @@ document.addEventListener('DOMContentLoaded', () => {
     video.srcObject = null;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     cameraPlaceholder.style.display = 'flex';
+
+    resetCameraFocus();
 
     btnStart.disabled = model === null;
     btnStop.disabled = true;
@@ -407,12 +523,81 @@ document.addEventListener('DOMContentLoaded', () => {
             lastFpsUpdate = now;
           }
 
-          renderPredictions(filtered);
+          // Evaluasi Filter Fokus Kustom (Task 15)
+          let displayPredictions = filtered;
+          let autoLockPredictions = filtered;
+
+          if (focusState.active) {
+            let focusedObject = null;
+
+            if (filtered.length > 0) {
+              let bestScore = Infinity;
+
+              filtered.forEach(pred => {
+                const [bx, by, bw, bh] = pred.bbox;
+                const midX = bx + bw / 2;
+                const midY = by + bh / 2;
+                const dist = Math.hypot(midX - focusState.canvasX, midY - focusState.canvasY);
+
+                // Cek apakah titik fokus kanvas berada di dalam bbox
+                const isInside = (
+                  focusState.canvasX >= bx && focusState.canvasX <= bx + bw &&
+                  focusState.canvasY >= by && focusState.canvasY <= by + bh
+                );
+                const classMatch = (focusState.targetClass && pred.class === focusState.targetClass);
+
+                // Skor kecocokan: makin kecil makin cocok
+                let score = dist;
+                if (isInside) score -= 100;
+                if (classMatch) score -= 150;
+
+                if (score < bestScore) {
+                  bestScore = score;
+                  focusedObject = pred;
+                }
+              });
+            }
+
+            if (focusedObject) {
+              const [fbx, fby, fbw, fbh] = focusedObject.bbox;
+              const targetMidX = fbx + fbw / 2;
+              const targetMidY = fby + fbh / 2;
+
+              // Smooth tracking titik fokus ke titik tengah target (Lerp)
+              const TRACK_LERP = 0.25;
+              focusState.canvasX += (targetMidX - focusState.canvasX) * TRACK_LERP;
+              focusState.canvasY += (targetMidY - focusState.canvasY) * TRACK_LERP;
+
+              // Geser pointer #focusReticle mengikuti posisi target di layar
+              const rect = overlay.getBoundingClientRect();
+              if (rect.width > 0 && rect.height > 0) {
+                const screenX = rect.left + focusState.canvasX * (rect.width / overlay.width);
+                const screenY = rect.top + focusState.canvasY * (rect.height / overlay.height);
+                updateFocusReticlePosition(screenX, screenY);
+              }
+
+              // Isolasi visual & auto-lock: hanya objek fokus penuh
+              displayPredictions = [focusedObject];
+              autoLockPredictions = [focusedObject];
+            } else {
+              // Jika target tidak terdeteksi di frame ini, tetap reposisi reticle jika canvas digeser/di-zoom
+              const rect = overlay.getBoundingClientRect();
+              if (rect.width > 0 && rect.height > 0 && focusState.canvasX !== null && focusState.canvasY !== null) {
+                const screenX = rect.left + focusState.canvasX * (rect.width / overlay.width);
+                const screenY = rect.top + focusState.canvasY * (rect.height / overlay.height);
+                updateFocusReticlePosition(screenX, screenY);
+              }
+              displayPredictions = [];
+              autoLockPredictions = [];
+            }
+          }
+
+          renderPredictions(displayPredictions);
 
           // Update & Gambar Auto-Lock Target (Fase 1: Cyan -> Fase 2: Amber -> Fase 3: Hijau)
           if (window.BenggalaAutoLock && window.BenggalaAutoLock.enabled) {
             window.BenggalaAutoLock.update(
-              filtered,
+              autoLockPredictions,
               performance.now(),
               (lockedTarget) => {
                 handleAutoLockPipeline(lockedTarget);
@@ -423,18 +608,18 @@ document.addEventListener('DOMContentLoaded', () => {
             window.BenggalaAutoLock.drawLockOverlay(ctx);
           }
 
-          updateLiveStats(filtered);
+          updateLiveStats(displayPredictions);
 
           // Panduan Navigasi Spasial Suara Real-Time (Khusus Mode Tunanetra)
           if (window.BenggalaMissions && typeof window.BenggalaMissions.announceSpatial === 'function') {
-            window.BenggalaMissions.announceSpatial(filtered, video.videoWidth || 640, video.videoHeight || 480);
+            window.BenggalaMissions.announceSpatial(displayPredictions, video.videoWidth || 640, video.videoHeight || 480);
           }
 
           // Update Telemetri & Mini Radar YOULO OS
           if (window.BenggalaCockpit && typeof window.BenggalaCockpit.updateTelemetry === 'function') {
             window.BenggalaCockpit.updateTelemetry({
               fps: currentFps,
-              predictions: filtered,
+              predictions: displayPredictions,
               videoWidth: video.videoWidth || 640,
               videoHeight: video.videoHeight || 480,
               threshold: Math.round(minConfidence * 100),
@@ -1161,7 +1346,59 @@ document.addEventListener('DOMContentLoaded', () => {
     let initialPinchDist = null;
     let initialPinchZoom = 1.0;
 
+    // Deteksi Double-Tap Aman (Task 15 - HP & PC)
+    let lastTapTime = 0;
+    let lastTapX = 0;
+    let lastTapY = 0;
+
+    viewportEl.addEventListener('pointerdown', (e) => {
+      // 1. Abaikan jika target klik berada di elemen kontrol, dock, panel, atau tombol
+      if (
+        e.target.closest('.cockpit-panel') ||
+        e.target.closest('.cockpit-dock') ||
+        e.target.closest('.hud-header') ||
+        e.target.closest('#hudZoomControl') ||
+        e.target.closest('#btnResetFocus') ||
+        e.target.closest('button') ||
+        e.target.closest('input') ||
+        e.target.closest('select') ||
+        e.target.closest('.cockpit-modal') ||
+        e.target.closest('.hud-telemetry') ||
+        e.target.closest('.hud-radar')
+      ) {
+        return;
+      }
+
+      // 2. WAJIB cek e.isPrimary (1 jari saja) dan klik kiri jika mouse
+      if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) {
+        return;
+      }
+
+      // 3. Hanya aktif jika kamera sedang berjalan
+      if (!isStreaming) {
+        return;
+      }
+
+      const now = performance.now();
+      const timeDiff = now - lastTapTime;
+      const dist = Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY);
+
+      if (timeDiff > 0 && timeDiff <= 320 && dist <= 30) {
+        // Double-tap terdeteksi!
+        lastTapTime = 0;
+        handleDoubleTapFocus(e.clientX, e.clientY);
+      } else {
+        lastTapTime = now;
+        lastTapX = e.clientX;
+        lastTapY = e.clientY;
+      }
+    });
+
     viewportEl.addEventListener('touchstart', (e) => {
+      // Jika sentuhan lebih dari 1 jari (pinch-to-zoom), batalkan timer double-tap
+      if (e.touches.length > 1) {
+        lastTapTime = 0;
+      }
       if (e.touches.length === 2 && !e.target.closest('.cockpit-panel')) {
         const dx = e.touches[0].clientX - e.touches[1].clientX;
         const dy = e.touches[0].clientY - e.touches[1].clientY;
@@ -1185,6 +1422,15 @@ document.addEventListener('DOMContentLoaded', () => {
         initialPinchDist = null;
       }
     }, { passive: true });
+  }
+
+  // Tombol Reset Fokus Kamera (Task 15)
+  if (btnResetFocus) {
+    btnResetFocus.addEventListener('click', (e) => {
+      e.stopPropagation();
+      resetCameraFocus();
+      showToast('🎯 Fokus dikembalikan ke tengah', 'info');
+    });
   }
 
   // =========================================================================

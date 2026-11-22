@@ -71,6 +71,9 @@ if (empty($_SESSION['csrf_token'])) {
 
     <!-- 2. Viewport Full-Bleed (.cockpit-viewport) -->
     <main class="cockpit-viewport">
+      <!-- Tombol Reset Fokus (Task 15) -->
+      <button id="btnResetFocus" class="hud-reset-focus hidden" title="Kembalikan fokus ke tengah">🎯 FOKUS TERKUNCI • ✕ RESET</button>
+
       <div class="camera-container" id="cameraContainer">
         <!-- Stage Pembungkus Kamera untuk Framing Contain & Smooth Zoom -->
         <div id="cameraStage" class="camera-stage">
@@ -105,7 +108,7 @@ if (empty($_SESSION['csrf_token'])) {
         <div class="hud-corner-frame corner-tr"></div>
         <div class="hud-corner-frame corner-bl"></div>
         <div class="hud-corner-frame corner-br"></div>
-        <div class="hud-crosshair">
+        <div class="hud-crosshair" id="focusReticle">
           <div class="crosshair-center"></div>
           <div class="crosshair-axis axis-x"></div>
           <div class="crosshair-axis axis-y"></div>
