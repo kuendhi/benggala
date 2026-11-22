@@ -304,6 +304,13 @@ html, body {
   pointer-events: none;
 }
 
+/* Akselerasi Hardware GPU & Anti-Jitter Rendering (Task 14A) */
+#overlay, #radarCanvas, .camera-stage {
+  will-change: transform;
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
 /* Starfield Animasi saat Kamera Mati */
 .viewport-stars {
   position: absolute;
