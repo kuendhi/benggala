@@ -305,7 +305,8 @@ document.addEventListener('DOMContentLoaded', () => {
     predictions.forEach(prediction => {
       const [x, y, width, height] = prediction.bbox;
       const color = getColorForClass(prediction.class);
-      const labelText = `${prediction.class} ${prediction.score.toFixed(2)}`;
+      const translatedName = typeof window.translateLabel === 'function' ? window.translateLabel(prediction.class) : prediction.class;
+      const labelText = `${translatedName} ${prediction.score.toFixed(2)}`;
 
       // Bounding Box
       ctx.strokeStyle = color;
@@ -368,11 +369,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = grouped[className];
       const percent = Math.round(data.maxScore * 100);
       const color = getColorForClass(className);
+      const translatedName = typeof window.translateLabel === 'function' ? window.translateLabel(className) : className;
 
       html += `
         <div class="detection-item" style="border-left-color: ${color}">
           <div class="item-left">
-            <span class="item-name">${className}</span>
+            <span class="item-name">${translatedName}</span>
             <span class="item-count-badge">x${data.count}</span>
           </div>
           <div class="item-right">
@@ -501,9 +503,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const csrfToken = getCsrfToken();
     const provider = llmProviderSelect ? llmProviderSelect.value : 'deepseek';
 
-    // Format objek untuk dikirim ke LLM
+    // Format objek untuk dikirim ke LLM (menggunakan terjemahan Bahasa Indonesia)
     const detectedObjects = currentPredictions.map(p => ({
-      name: p.class,
+      name: typeof window.translateLabel === 'function' ? window.translateLabel(p.class) : p.class,
+      class_en: p.class,
       score: p.score
     }));
 

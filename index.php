@@ -151,6 +151,9 @@ if (empty($_SESSION['csrf_token'])) {
   <!-- Toast Notification Container -->
   <div id="toastContainer" class="toast-notification"></div>
 
+  <!-- Kamus Bahasa Indonesia COCO-SSD (Anti-Cache) -->
+  <script src="assets/js/coco_id.js?v=<?= filemtime('assets/js/coco_id.js') ?>"></script>
+
   <!-- Detector Script (Anti-Cache) -->
   <script src="assets/js/detector.js?v=<?= filemtime('assets/js/detector.js') ?>"></script>
 </body>
