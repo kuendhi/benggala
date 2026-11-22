@@ -297,26 +297,44 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Resolusi Tinggi Ideal: Full HD 1080p hingga 4K
-    // Note: frameRate tidak dipaksa ke 60 FPS agar sensor kamera tidak mempercepat shutter speed,
-    // sehingga auto-exposure / auto-gain dapat menyerap cahaya ruangan secara maksimal.
-    const constraints = {
-      audio: false,
-      video: {
-        facingMode: currentFacingMode,
-        width: { ideal: 1920, max: 3840 },
-        height: { ideal: 1080, max: 2160 }
-      }
+    // Deteksi lingkungan: di HP gunakan facingMode, di PC maksimalkan resolusi sensor
+    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    const primaryVideoConstraints = {
+      width: { ideal: 1920, max: 3840 },
+      height: { ideal: 1080, max: 2160 }
     };
+    if (isMobileDevice) {
+      primaryVideoConstraints.facingMode = { ideal: currentFacingMode };
+    }
 
     try {
       try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (errConstraint) {
-        console.warn('Resolusi 1080p tidak dapat dipenuhi secara kaku, mencoba fallback otomatis:', errConstraint);
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: { facingMode: currentFacingMode }
+          video: primaryVideoConstraints
         });
+      } catch (errConstraint) {
+        console.warn('Resolusi 1080p tidak dapat dipenuhi secara kaku, mencoba fallback resolusi fleksibel:', errConstraint);
+        try {
+          const fallbackConstraints = {
+            width: { ideal: 1280, min: 640 },
+            height: { ideal: 720, min: 480 }
+          };
+          if (isMobileDevice) {
+            fallbackConstraints.facingMode = { ideal: currentFacingMode };
+          }
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: fallbackConstraints
+          });
+        } catch (errFallback) {
+          console.warn('Fallback 720p gagal, mencoba stream dasar:', errFallback);
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: isMobileDevice ? { facingMode: currentFacingMode } : true
+          });
+        }
       }
 
       // Optimasi kapabilitas hardware kamera (auto-focus saja, hindari white balance lock agar warna netral alami)
@@ -425,6 +443,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const cameraStage = document.getElementById('cameraStage');
     if (cameraStage) {
       cameraStage.classList.remove('active-stream');
+      cameraStage.style.width = '100%';
+      cameraStage.style.height = '100%';
+      cameraStage.style.transform = 'scale(1)';
     }
 
     const viewportStars = document.getElementById('viewportStars');
@@ -486,11 +507,55 @@ document.addEventListener('DOMContentLoaded', () => {
     cameraError.style.display = 'none';
   }
 
+  let cameraDisplayMode = localStorage.getItem('benggala_cam_display_mode') || 'fit'; // 'fit' (proporsional maksimal) | 'fill' (layar penuh)
+
   function syncCanvasDimensions() {
+    if (!video || !canvas) return;
+
     if (video.videoWidth && video.videoHeight) {
       if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
+      }
+
+      // Maksimalkan dimensi tampilan cameraStage agar memenuhi layar PC dan responsif di HP
+      const container = document.getElementById('cameraContainer');
+      const stage = document.getElementById('cameraStage');
+      if (container && stage) {
+        const contW = container.clientWidth;
+        const contH = container.clientHeight;
+
+        if (contW > 0 && contH > 0) {
+          const videoAspect = video.videoWidth / video.videoHeight;
+          const contAspect = contW / contH;
+
+          let targetW, targetH;
+
+          if (cameraDisplayMode === 'fill') {
+            // Mode Layar Penuh (Fill / Cover): Penuhi seluruh viewport tanpa ada bar kosong
+            if (contAspect > videoAspect) {
+              targetW = contW;
+              targetH = contW / videoAspect;
+            } else {
+              targetH = contH;
+              targetW = contH * videoAspect;
+            }
+          } else {
+            // Mode Proporsional Maksimal (Fit): Maksimalkan sebesar mungkin di layar tanpa terpotong
+            if (contAspect > videoAspect) {
+              // PC Widescreen: Maksimalkan tinggi monitor 100%, lebarkan proporsional
+              targetH = contH;
+              targetW = contH * videoAspect;
+            } else {
+              // Layar HP: Maksimalkan lebar layar HP 100%, tinggikan proporsional
+              targetW = contW;
+              targetH = contW / videoAspect;
+            }
+          }
+
+          stage.style.width = `${Math.round(targetW)}px`;
+          stage.style.height = `${Math.round(targetH)}px`;
+        }
       }
     }
   }
@@ -1417,6 +1482,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Terapkan pengaturan kecerahan awal
   applySavedBrightness();
+
+  // Tombol Toggle Mode Tampilan Layar (Proporsional Maksimal <-> Layar Penuh)
+  const btnDisplayMode = document.getElementById('btnDisplayMode');
+  if (btnDisplayMode) {
+    btnDisplayMode.textContent = (cameraDisplayMode === 'fill') ? '🔲' : '⛶';
+    btnDisplayMode.title = (cameraDisplayMode === 'fill')
+      ? 'Mode Layar: Penuh Edge-to-Edge (Klik untuk Proporsional Maksimal)'
+      : 'Mode Layar: Proporsional Maksimal (Klik untuk Layar Penuh)';
+
+    btnDisplayMode.addEventListener('click', () => {
+      cameraDisplayMode = (cameraDisplayMode === 'fill') ? 'fit' : 'fill';
+      localStorage.setItem('benggala_cam_display_mode', cameraDisplayMode);
+
+      btnDisplayMode.textContent = (cameraDisplayMode === 'fill') ? '🔲' : '⛶';
+      btnDisplayMode.title = (cameraDisplayMode === 'fill')
+        ? 'Mode Layar: Penuh Edge-to-Edge (Klik untuk Proporsional Maksimal)'
+        : 'Mode Layar: Proporsional Maksimal (Klik untuk Layar Penuh)';
+
+      syncCanvasDimensions();
+      showToast(
+        (cameraDisplayMode === 'fill')
+          ? '⛶ Mode Layar: Penuh (Edge-to-Edge)'
+          : '⛶ Mode Layar: Proporsional Maksimal',
+        'info'
+      );
+    });
+  }
 
   // =========================================================================
   // Event Listeners Smooth Zoom (Slider, Tombol Step, Mouse Wheel, Touch Pinch)

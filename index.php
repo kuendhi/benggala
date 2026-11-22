@@ -460,9 +460,10 @@ if (empty($_SESSION['csrf_token'])) {
       </div>
     </section>
 
-    <!-- Kontrol Smooth Zoom & Kecerahan Melayang (.hud-zoom-control) -->
+    <!-- Kontrol Smooth Zoom, Kecerahan & Mode Layar Melayang (.hud-zoom-control) -->
     <div class="hud-zoom-control" id="hudZoomControl">
       <button type="button" id="btnBrightnessBoost" class="btn-zoom-step" title="Kecerahan Layar Instan (Klik untuk ganti 110% / 125% / 145%)">☀️</button>
+      <button type="button" id="btnDisplayMode" class="btn-zoom-step" title="Mode Tampilan Layar (Klik: Proporsional Maksimal / Layar Penuh)">⛶</button>
       <button type="button" id="btnZoomOut" class="btn-zoom-step" title="Zoom Out (−0.2x)">−</button>
       <input type="range" id="zoomSlider" min="1" max="3" step="0.05" value="1" title="Geser Zoom (1.0x - 3.0x)">
       <button type="button" id="btnZoomIn" class="btn-zoom-step" title="Zoom In (+0.2x)">+</button>
