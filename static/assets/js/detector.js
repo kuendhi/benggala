@@ -143,6 +143,18 @@ document.addEventListener('DOMContentLoaded', () => {
     return meta ? meta.getAttribute('content') : '';
   }
 
+  // Helper untuk mendapatkan URL endpoint / aset yang memperhitungkan subfolder (window.BASE_PATH)
+  function getApiUrl(endpoint) {
+    if (typeof window.resolveUrl === 'function') {
+      return window.resolveUrl(endpoint);
+    }
+    const base = (window.BASE_PATH || '').replace(/\/+$/, '');
+    if (!base) return endpoint;
+    const clean = endpoint.startsWith('/') ? endpoint : '/' + endpoint;
+    if (clean.startsWith(base + '/')) return clean;
+    return base + clean;
+  }
+
   // Helper untuk memperbarui tampilan status kalibrasi piksel ke cm
   function updateCalibrationUI() {
     if (!calibrationStatus) return;
@@ -1394,7 +1406,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnSnapshot.innerHTML = isCctv ? '📸 CCTV Mengambil...' : '⏳ Menyimpan...';
 
     try {
-      const response = await fetch('/api/snapshot/save', {
+      const response = await fetch(getApiUrl('/api/snapshot/save'), {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
@@ -1498,7 +1510,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      const response = await fetch('/api/ai/analyze', {
+      const response = await fetch(getApiUrl('/api/ai/analyze'), {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
@@ -1638,7 +1650,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      const response = await fetch('/api/ai/analyze', {
+      const response = await fetch(getApiUrl('/api/ai/analyze'), {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
@@ -1764,7 +1776,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btnAnalyzeHsv.innerHTML = '⏳ Menghitung HSV...';
 
       try {
-        const response = await fetch('/api/python/hsv-color', {
+        const response = await fetch(getApiUrl('/api/python/hsv-color'), {
           method: 'POST',
           credentials: 'same-origin',
           headers: {
@@ -2372,7 +2384,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadSettings() {
     try {
-      const res = await fetch('/api/settings', {
+      const res = await fetch(getApiUrl('/api/settings'), {
         method: 'GET',
         credentials: 'same-origin'
       });
@@ -2425,7 +2437,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     try {
-      const res = await fetch('/api/settings', {
+      const res = await fetch(getApiUrl('/api/settings'), {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
@@ -2484,7 +2496,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!historyGrid) return;
 
     try {
-      const response = await fetch('/api/history', {
+      const response = await fetch(getApiUrl('/api/history'), {
         method: 'GET',
         credentials: 'same-origin'
       });
@@ -2528,7 +2540,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const thumbWrapper = document.createElement('div');
         thumbWrapper.className = 'history-thumb-wrapper';
 
-        const formattedPath = (item.file_path || '').startsWith('/') ? item.file_path : ('/' + (item.file_path || ''));
+        const rawPath = item.file_path || '';
+        const cleanPath = rawPath.startsWith('/') ? rawPath : ('/' + rawPath);
+        const formattedPath = getApiUrl(cleanPath);
         const img = document.createElement('img');
         img.className = 'history-thumb';
         img.src = formattedPath;
@@ -2630,7 +2644,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // PDF Report link (Task PY06)
         const pdfLink = document.createElement('a');
         pdfLink.className = 'btn-report-pdf';
-        pdfLink.href = `/api/python/report-pdf/${item.id}`;
+        pdfLink.href = getApiUrl(`/api/python/report-pdf/${item.id}`);
         pdfLink.target = '_blank';
         pdfLink.rel = 'noopener noreferrer';
         pdfLink.textContent = '📄 PDF';
@@ -2667,7 +2681,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function deleteHistoryItem(id) {
     try {
       const csrfToken = getCsrfToken();
-      const response = await fetch('/api/history/delete', {
+      const response = await fetch(getApiUrl('/api/history/delete'), {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
@@ -2696,7 +2710,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Event Listeners untuk Refresh & Export CSV
   if (btnExportCsv) {
     btnExportCsv.addEventListener('click', () => {
-      window.location.href = '/api/history/export-csv';
+      window.location.href = getApiUrl('/api/history/export-csv');
     });
   }
 

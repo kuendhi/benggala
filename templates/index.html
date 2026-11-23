@@ -4,8 +4,34 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="csrf-token" content="{{ csrf_token }}">
-  <script>window.CSRF_TOKEN = "{{ csrf_token }}";</script>
-  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <script>
+    window.BASE_PATH = "{{ base_path }}";
+    window.CSRF_TOKEN = "{{ csrf_token }}";
+
+    window.resolveUrl = function(path) {
+      if (!path || typeof path !== 'string') return path;
+      if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:') || path.startsWith('blob:')) {
+        return path;
+      }
+      const base = (window.BASE_PATH || '').replace(/\/+$/, '');
+      if (!base) return path;
+      const clean = path.startsWith('/') ? path : '/' + path;
+      if (clean.startsWith(base + '/')) return clean;
+      return base + clean;
+    };
+
+    // Auto-resolve fetch API calls agar subfolder (/benggala) otomatis tertangani tanpa merusak third-party fetch
+    const _nativeFetch = window.fetch;
+    window.fetch = function(input, init) {
+      if (typeof input === 'string') {
+        if (input.startsWith('/api/') || input.startsWith('/uploads/') || input.startsWith('uploads/')) {
+          input = window.resolveUrl(input);
+        }
+      }
+      return _nativeFetch(input, init);
+    };
+  </script>
+  <link rel="manifest" href="{{ asset_url('manifest.json') }}">
   <meta name="theme-color" content="#020617">
   <title>BENGGALA // YOULO OS Spacecraft Controller</title>
   
@@ -19,7 +45,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
   
   <!-- YOULO OS Cockpit Styles (Anti-Cache) -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/style.css') }}">
+  <link rel="stylesheet" href="{{ asset_url('assets/css/style.css') }}">
 </head>
 <body class="youlo-os">
   <div class="cockpit-shell">
@@ -656,27 +682,27 @@
   </div>
 
   <!-- Kamus Bahasa Indonesia COCO-SSD (Anti-Cache) -->
-  <script src="{{ url_for('static', filename='assets/js/coco_id.js') }}"></script>
+  <script src="{{ asset_url('assets/js/coco_id.js') }}"></script>
 
   <!-- Modul Mode CCTV Pintar (Anti-Cache) -->
-  <script src="{{ url_for('static', filename='assets/js/cctv.js') }}"></script>
+  <script src="{{ asset_url('assets/js/cctv.js') }}"></script>
 
   <!-- Modul YOULO OS Cockpit (Anti-Cache) -->
-  <script src="{{ url_for('static', filename='assets/js/cockpit.js') }}"></script>
+  <script src="{{ asset_url('assets/js/cockpit.js') }}"></script>
 
   <!-- Modul Auto-Lock Target & Pipeline AI (Anti-Cache) -->
-  <script src="{{ url_for('static', filename='assets/js/autolock.js') }}"></script>
+  <script src="{{ asset_url('assets/js/autolock.js') }}"></script>
 
   <!-- Modul Misi Cepat & Tunanetra (Anti-Cache) -->
-  <script src="{{ url_for('static', filename='assets/js/missions.js') }}"></script>
+  <script src="{{ asset_url('assets/js/missions.js') }}"></script>
 
   <!-- Modul Target Dossier PNG Generator (Anti-Cache) -->
-  <script src="{{ url_for('static', filename='assets/js/dossier.js') }}"></script>
+  <script src="{{ asset_url('assets/js/dossier.js') }}"></script>
 
   <!-- Modul Transmisi Taktis & Breaking News Visi 2027 (Anti-Cache) -->
-  <script src="{{ url_for('static', filename='assets/js/roadmap.js') }}"></script>
+  <script src="{{ asset_url('assets/js/roadmap.js') }}"></script>
 
   <!-- Detector Script (Anti-Cache) -->
-  <script src="{{ url_for('static', filename='assets/js/detector.js') }}"></script>
+  <script src="{{ asset_url('assets/js/detector.js') }}"></script>
 </body>
 </html>

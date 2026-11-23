@@ -1,6 +1,6 @@
 import os
 import secrets
-from flask import Flask, render_template, session, send_from_directory, make_response, jsonify
+from flask import Flask, render_template, session, send_from_directory, make_response, jsonify, request
 from dotenv import load_dotenv
 from core.database import db_fetch_one
 from routes.settings_history import settings_history_bp
@@ -27,12 +27,29 @@ app.register_blueprint(settings_history_bp)
 app.register_blueprint(ai_snapshot_bp)
 app.register_blueprint(python_power_bp)
 
+@app.context_processor
+def inject_helpers():
+    """Menyediakan variabel base_path dan helper asset_url ke seluruh template Jinja2."""
+    base_path = request.script_root.rstrip('/') or os.getenv('BASE_PATH', '').rstrip('/')
+
+    def asset_url(filename):
+        clean_file = filename.lstrip('/')
+        if clean_file.startswith('static/'):
+            clean_file = clean_file[len('static/'):]
+        return f"{base_path}/static/{clean_file}"
+
+    return {
+        'base_path': base_path,
+        'asset_url': asset_url
+    }
+
 @app.route('/')
 def index():
     """Halaman antarmuka utama Benggala OS Cockpit."""
     if 'csrf_token' not in session:
         session['csrf_token'] = secrets.token_hex(32)
-    return render_template('index.html', csrf_token=session['csrf_token'])
+    base_path = request.script_root.rstrip('/') or os.getenv('BASE_PATH', '').rstrip('/')
+    return render_template('index.html', csrf_token=session['csrf_token'], base_path=base_path)
 
 @app.route('/manifest.json')
 def manifest():
