@@ -196,28 +196,89 @@
         return;
       }
 
-      // 1. Pilih 1 Objek Utama: Dekat dengan Crosshair Tengah & Akurasi Tertinggi
+      // 1. Filter Background Besar & Smart Foreground Target Selection (Task 19A)
+      // Aturan: Smallest-Box-First pada titik bidik reticle tengah, abaikan BACKGROUND_CLASSES > 0.40 jika filter aktif
       const centerX = canvasWidth / 2;
       const centerY = canvasHeight / 2;
+      const totalArea = (canvasWidth * canvasHeight) || (640 * 480);
+
+      const bgClasses = window.BACKGROUND_CLASSES || ['couch', 'bed', 'dining table', 'bench'];
+      const isFilterBgActive = (typeof window.IGNORE_BG_MODE === 'boolean') ? window.IGNORE_BG_MODE : true;
 
       let primary = null;
-      let minDistance = Infinity;
 
       if (predictions && predictions.length > 0) {
-        predictions.forEach(pred => {
+        // Evaluasi dan perkaya setiap prediksi dengan metrik area & background status
+        const evaluated = predictions.map(pred => {
           const [bx, by, bw, bh] = pred.bbox;
+          const area = bw * bh;
+          const areaRatio = totalArea > 0 ? (area / totalArea) : 0;
+          const isBg = bgClasses.includes(pred.class);
+          const isLargeBg = isBg && (areaRatio > 0.40);
+          const isGiant = (pred.class !== 'person') && (areaRatio > 0.72);
+
+          // Cek apakah kotak melingkupi titik bidik reticle tengah
+          const enclosesCenter = (
+            centerX >= bx && centerX <= (bx + bw) &&
+            centerY >= by && centerY <= (by + bh)
+          );
+
           const mx = bx + bw / 2;
           const my = by + bh / 2;
-          // Jarak Euclidean ke pusat layar
           const dist = Math.hypot(mx - centerX, my - centerY);
-          // Beri bobot kombinasi jarak (70%) dan confidence (30%)
-          const score = dist - (pred.score * 120);
 
-          if (score < minDistance) {
-            minDistance = score;
-            primary = pred;
-          }
+          return {
+            pred,
+            bbox: pred.bbox,
+            area,
+            areaRatio,
+            isBg,
+            isLargeBg,
+            isGiant,
+            enclosesCenter,
+            dist,
+            score: pred.score || 0
+          };
         });
+
+        // Terapkan Aturan 1: Abaikan BACKGROUND_CLASSES jika areaRatio > 0.40 saat filter aktif
+        const eligible = isFilterBgActive
+          ? evaluated.filter(item => !item.isLargeBg)
+          : evaluated;
+
+        if (eligible.length > 0) {
+          // Pisahkan kandidat yang melingkupi titik reticle tengah
+          const centerHits = eligible.filter(item => item.enclosesCenter);
+
+          if (centerHits.length > 0) {
+            // Aturan 2: Smallest-Box-First (Kotak dengan luas area terkecil / objek di depan)
+            centerHits.sort((a, b) => {
+              // Giant box (>0.72) ditaruh paling bawah jika ada objek yang lebih proporsional
+              if (a.isGiant !== b.isGiant) return a.isGiant ? 1 : -1;
+              // Utamakan kotak terkecil (foreground)
+              if (Math.abs(a.area - b.area) > 10) {
+                return a.area - b.area;
+              }
+              // Jika ukuran sangat mirip, pilih skor confidence tertinggi
+              return b.score - a.score;
+            });
+            primary = centerHits[0].pred;
+          } else {
+            // Jika tidak ada kotak yang melingkupi titik tengah, pilih objek terdekat
+            // dengan penalti untuk giant box dan objek besar
+            eligible.sort((a, b) => {
+              if (a.isGiant !== b.isGiant) return a.isGiant ? 1 : -1;
+              const scoreA = a.dist + (a.areaRatio * 250) - (a.score * 80);
+              const scoreB = b.dist + (b.areaRatio * 250) - (b.score * 80);
+              return scoreA - scoreB;
+            });
+            primary = eligible[0].pred;
+          }
+        } else {
+          // Semua objek terfilter sebagai background besar (misal hanya sofa/meja besar di depan kamera)
+          // Biarkan primary = null agar Auto-Lock tidak mengunci latar belakang (siap Reticle Crop Tahap 19B)
+          primary = null;
+        }
       }
 
       // Jika tidak ada objek yang valid di viewport

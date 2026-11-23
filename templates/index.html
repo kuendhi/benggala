@@ -257,6 +257,19 @@
           </div>
         </div>
 
+        <!-- Filter Latar Belakang Besar (Task 19A: Smart Foreground / Ignore Large BG) -->
+        <div class="form-group" style="margin: 0.6rem 0;">
+          <label style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">
+            <span>🛡️ Filter Background Besar</span>
+            <span id="filterBgStatusVal" style="color: #10b981; font-weight: 700;">Aktif (ON)</span>
+          </label>
+          <div class="filter-bg-btn-group" style="display: flex; gap: 6px;">
+            <button type="button" id="btnToggleFilterBgPanel" class="btn btn-secondary active" style="flex: 1; padding: 6px 4px; font-size: 0.74rem; border-color: rgba(16, 185, 129, 0.5); color: #10b981;" title="Abaikan objek latar belakang besar (sofa, meja, kasur) agar Auto-Lock fokus ke benda di depannya">
+              🛡️ Filter Background: ON
+            </button>
+          </div>
+        </div>
+
         <div class="action-divider"></div>
         <button type="button" id="btnSnapshot" class="btn btn-action" disabled>
           📸 Ambil Snapshot
@@ -603,6 +616,7 @@
       <button type="button" id="btnBrightnessBoost" class="btn-zoom-step" title="Kecerahan Layar Instan (Klik untuk ganti 110% / 125% / 145%)">☀️</button>
       <button type="button" id="btnOrientation" class="btn-zoom-step" title="Orientasi Layar: Portrait (9:16) / Widescreen (16:9) / Auto">📱</button>
       <button type="button" id="btnDisplayMode" class="btn-zoom-step" title="Mode Framing: Proporsional (Fit) / Layar Penuh (Fill)">⛶</button>
+      <button type="button" id="btnToggleFilterBg" class="btn-zoom-step active" title="🛡️ Filter Background Besar (Sofa/Meja/Kasur): Aktif • Klik untuk Matikan" style="color: #10b981; border-color: rgba(16, 185, 129, 0.45); background: rgba(16, 185, 129, 0.15);">🛡️</button>
       <button type="button" id="btnOpenKnowledge" class="btn-zoom-step" title="🎯 Latih Objek (KNN Classifier)" style="color: #fbbf24; border-color: rgba(251, 191, 36, 0.4);">🎯</button>
       <button type="button" id="btnZoomOut" class="btn-zoom-step" title="Zoom Out (−0.1x)">−</button>
       <input type="range" id="zoomSlider" min="1" max="3" step="0.05" value="1" title="Geser Zoom (1.0x - 3.0x)">

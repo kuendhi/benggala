@@ -103,6 +103,28 @@ document.addEventListener('DOMContentLoaded', () => {
     '#8b5cf6', '#3b82f6', '#14b8a6', '#f97316'
   ];
 
+  // Konfigurasi Filter Objek Latar Belakang & Smart Foreground Target Selection (Task 19A)
+  const BACKGROUND_CLASSES = ['couch', 'bed', 'dining table', 'bench'];
+  window.BACKGROUND_CLASSES = BACKGROUND_CLASSES;
+  const savedBgFilter = localStorage.getItem('benggala_ignore_bg');
+  window.IGNORE_BG_MODE = (savedBgFilter !== 'false'); // Default: true (Aktif)
+
+  /**
+   * Helper evaluasi objek background besar & giant bounding box (Task 19A)
+   */
+  function evaluateBackgroundClassification(pred, totalArea) {
+    if (!pred || !pred.bbox || totalArea <= 0) {
+      return { areaRatio: 0, isLargeBg: false, isGiantBox: false, area: 0 };
+    }
+    const [bx, by, bw, bh] = pred.bbox;
+    const area = bw * bh;
+    const areaRatio = area / totalArea;
+    const isBgClass = BACKGROUND_CLASSES.includes(pred.class);
+    const isLargeBg = isBgClass && (areaRatio > 0.40);
+    const isGiantBox = (pred.class !== 'person') && (areaRatio > 0.72);
+    return { areaRatio, isLargeBg, isGiantBox, area };
+  }
+
   function getColorForClass(className) {
     let hash = 0;
     for (let i = 0; i < className.length; i++) {
@@ -339,9 +361,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const tapX = tapCoords.x;
     const tapY = tapCoords.y;
 
-    // Cek apakah (tapX, tapY) mengenai salah satu bbox objek dari lastPredictions (toleransi margin 20px)
+    // Cek apakah (tapX, tapY) mengenai bbox objek dari lastPredictions (toleransi margin 20px)
+    // Task 19A: Smallest-Box-First & filter background besar
     let hit = null;
     const tolerance = 20;
+    const totalArea = (canvas.width * canvas.height) || (640 * 480);
+    const isFilterBgActive = (typeof window.IGNORE_BG_MODE === 'boolean') ? window.IGNORE_BG_MODE : true;
+
+    const candidates = [];
 
     if (lastPredictions && lastPredictions.length > 0) {
       for (const pred of lastPredictions) {
@@ -352,10 +379,34 @@ document.addEventListener('DOMContentLoaded', () => {
           tapY >= (by - tolerance) &&
           tapY <= (by + bh + tolerance)
         ) {
-          hit = pred;
-          break;
+          const area = bw * bh;
+          const areaRatio = area / totalArea;
+          const isLargeBg = BACKGROUND_CLASSES.includes(pred.class) && (areaRatio > 0.40);
+          const isGiant = (pred.class !== 'person') && (areaRatio > 0.72);
+
+          // Jika filter aktif dan objek adalah background besar (> 0.40), lewati
+          if (isFilterBgActive && isLargeBg) {
+            continue;
+          }
+
+          candidates.push({
+            pred,
+            area,
+            areaRatio,
+            isGiant
+          });
         }
       }
+    }
+
+    if (candidates.length > 0) {
+      // Smallest-Box-First: Prioritaskan objek terkecil di lapisan depan
+      candidates.sort((a, b) => {
+        if (a.isGiant !== b.isGiant) return a.isGiant ? 1 : -1;
+        if (Math.abs(a.area - b.area) > 10) return a.area - b.area;
+        return (b.pred.score || 0) - (a.pred.score || 0);
+      });
+      hit = candidates[0].pred;
     }
 
     if (hit) {
@@ -1098,12 +1149,27 @@ document.addEventListener('DOMContentLoaded', () => {
    * Class-Agnostic Non-Maximum Suppression (NMS) & Containment Suppression.
    * Menghilangkan objek bayangan / kotak palsu yang tumpang-tindih atau bersarang di dalam objek lain
    * (seperti mangkuk atau meja makan di dalam botol).
+   * Task 19A: Smart Foreground & Filter Background Besar (Smallest-Box-First)
    */
-  function suppressNestedAndOverlappingBoxes(predictions, iouThreshold = 0.55, containmentThreshold = 0.75) {
+  function suppressNestedAndOverlappingBoxes(predictions, iouThreshold = 0.55, containmentThreshold = 0.75, vw = 640, vh = 480) {
     if (!predictions || predictions.length <= 1) return predictions || [];
 
+    const totalArea = (vw * vh) || (640 * 480);
+
+    // 1. Tag setiap prediksi dengan informasi area, areaRatio, isLargeBg, dan isGiantBox
+    const enriched = predictions.map(p => {
+      const bgInfo = evaluateBackgroundClassification(p, totalArea);
+      return {
+        ...p,
+        area: bgInfo.area,
+        areaRatio: bgInfo.areaRatio,
+        isLargeBg: bgInfo.isLargeBg,
+        isGiantBox: bgInfo.isGiantBox
+      };
+    });
+
     // Filter awal: Supresi false positive "dining table" / meja makan yang tumpang-tindih dengan objek foreground
-    const cleaned = predictions.filter(p => {
+    const cleaned = enriched.filter(p => {
       // Jika meja makan berukuran kecil atau akurasinya di bawah 0.70 saat ada objek lain
       if (p.class === 'dining table' && p.score < 0.70) {
         return false;
@@ -1111,8 +1177,25 @@ document.addEventListener('DOMContentLoaded', () => {
       return true;
     });
 
-    // Urutkan dari confidence tertinggi ke terendah
-    const sorted = [...cleaned].sort((a, b) => b.score - a.score);
+    // Urutkan kandidat:
+    // Sesuai Aturan Task 19A:
+    // 1. Giant box (> 0.72 selain person) selalu ditaruh di prioritas paling bawah.
+    // 2. Large background (> 0.40 sofa, meja, bed, bench) jika window.IGNORE_BG_MODE aktif ditaruh di prioritas paling bawah.
+    // 3. Objek foreground normal diurutkan berdasarkan confidence tertinggi.
+    const sorted = [...cleaned].sort((a, b) => {
+      const aGiant = a.isGiantBox ? 1 : 0;
+      const bGiant = b.isGiantBox ? 1 : 0;
+      if (aGiant !== bGiant) return aGiant - bGiant;
+
+      if (window.IGNORE_BG_MODE) {
+        const aBg = a.isLargeBg ? 1 : 0;
+        const bBg = b.isLargeBg ? 1 : 0;
+        if (aBg !== bBg) return aBg - bBg;
+      }
+
+      return b.score - a.score;
+    });
+
     const accepted = [];
 
     for (const cand of sorted) {
@@ -1127,16 +1210,27 @@ document.addEventListener('DOMContentLoaded', () => {
           break;
         }
 
-        // 2. Kotak kandidat berada di dalam objek yang sudah diterima (misal mangkuk di dalam botol)
-        if (overlapB > containmentThreshold) {
+        // 2. Kotak kandidat berada di dalam objek yang sudah diterima
+        // PENTING: Jika win adalah background / permukaan meja/sofa/kasur (win.isLargeBg atau win.area > cand.area * 2.2),
+        // JANGAN supresi cand! Benda kecil di atas meja/sofa adalah objek nyata.
+        const winIsContainer = win.isLargeBg || BACKGROUND_CLASSES.includes(win.class) || (win.area > cand.area * 2.2);
+        if (overlapB > containmentThreshold && !winIsContainer) {
           isDuplicateOrNested = true;
           break;
         }
 
-        // 3. Kotak yang sudah diterima berada di dalam kandidat ini (kandidat membungkus objek spesifik dengan skor lebih rendah)
+        // 3. Kotak yang sudah diterima berada di dalam kandidat ini
         if (overlapA > containmentThreshold) {
-          isDuplicateOrNested = true;
-          break;
+          // Jika kelas sama persis, buang duplikat kotak yang lebih besar / skor lebih rendah
+          if (cand.class === win.class) {
+            isDuplicateOrNested = true;
+            break;
+          }
+          // Jika cand adalah giant box (> 0.72), buang cand
+          if (cand.isGiantBox) {
+            isDuplicateOrNested = true;
+            break;
+          }
         }
       }
 
@@ -1235,11 +1329,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. Filter awal berdasarkan ambang batas keyakinan pengguna (dengan toleransi detail)
     const confidentList = scaledDetections.filter(pred => pred.score >= Math.min(minConfidence, 0.35));
 
-    // 2. Terapkan Containment Suppression & Class-Agnostic NMS (Anti-Ghosting bayangan dalam objek)
-    const filtered = suppressNestedAndOverlappingBoxes(confidentList, 0.55, 0.75);
+    // 2. Terapkan Containment Suppression & Class-Agnostic NMS (Task 19A: Smart Foreground & Filter BG)
+    const filtered = suppressNestedAndOverlappingBoxes(confidentList, 0.55, 0.75, vw, vh);
 
     // Hook Pengetahuan Objek Kustom (Task 16B: MobileNet v2 + KNN Classifier Throttled ~350ms)
-    const targetPred = (filtered && filtered.length > 0) ? filtered[0] : null;
+    // Utamakan objek foreground non-background jika Filter BG aktif
+    const targetPred = (filtered && filtered.length > 0)
+      ? (window.IGNORE_BG_MODE ? (filtered.find(p => !p.isLargeBg) || filtered[0]) : filtered[0])
+      : null;
     const nowPerf = performance.now();
 
     if (targetPred && window.BenggalaKnowledge && typeof window.BenggalaKnowledge.isReady === 'function' && window.BenggalaKnowledge.isReady()) {
@@ -1372,7 +1469,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let focusedObject = null;
         if (focusState.active && focusState.targetClass) {
           if (predictionsSource.length > 0) {
-            let bestScore = Infinity;
+            let matchingCandidates = [];
 
             predictionsSource.forEach(pred => {
               const [bx, by, bw, bh] = pred.bbox;
@@ -1386,15 +1483,27 @@ document.addEventListener('DOMContentLoaded', () => {
               );
               const classMatch = (pred.class === focusState.targetClass);
 
-              let score = dist;
-              if (isInside) score -= 100;
-              if (classMatch) score -= 200;
-
-              if (score < bestScore) {
-                bestScore = score;
-                focusedObject = pred;
+              if (classMatch || isInside || dist < 160) {
+                matchingCandidates.push({
+                  pred,
+                  dist,
+                  isInside,
+                  classMatch,
+                  area: bw * bh
+                });
               }
             });
+
+            if (matchingCandidates.length > 0) {
+              // Task 19A: Prioritaskan classMatch, lalu isInside, lalu Smallest-Box-First
+              matchingCandidates.sort((a, b) => {
+                if (a.classMatch !== b.classMatch) return a.classMatch ? -1 : 1;
+                if (a.isInside !== b.isInside) return a.isInside ? -1 : 1;
+                if (Math.abs(a.area - b.area) > 20) return a.area - b.area;
+                return a.dist - b.dist;
+              });
+              focusedObject = matchingCandidates[0].pred;
+            }
           }
 
           if (focusedObject) {
@@ -1426,8 +1535,15 @@ document.addEventListener('DOMContentLoaded', () => {
           ? (focusedObject ? [focusedObject] : [])
           : displayPredictions;
 
-        // Simpan referensi objek aktif utama untuk modul training (Task 16B)
-        latestActivePrediction = (displayPredictions && displayPredictions.length > 0) ? displayPredictions[0] : null;
+        // Simpan referensi objek aktif utama untuk modul training (Task 16B & 19A)
+        // Prioritaskan objek foreground non-large-bg jika Filter BG aktif
+        const isFilterBgActive = (typeof window.IGNORE_BG_MODE === 'boolean') ? window.IGNORE_BG_MODE : true;
+        const foregroundCandidates = isFilterBgActive
+          ? displayPredictions.filter(p => !p.isLargeBg)
+          : displayPredictions;
+        latestActivePrediction = (foregroundCandidates && foregroundCandidates.length > 0)
+          ? foregroundCandidates[0]
+          : (isFilterBgActive ? null : (displayPredictions && displayPredictions.length > 0 ? displayPredictions[0] : null));
 
         // Sinkronkan label KNN aktif jika ada
         if (latestActivePrediction && lastKnnMatch && (now - lastKnnMatchTime < 800)) {
@@ -1543,7 +1659,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentMap = new Map();
     const LERP_FACTOR = 0.65; // Interpolasi halus antar-frame untuk meredam jitter/lonjakan
 
-    predictions.forEach((prediction, idx) => {
+    // Task 19A: Urutkan objek yang akan digambar: Kotak besar digambar lebih dulu di lapisan bawah,
+    // kotak kecil digambar paling akhir di lapisan atas agar label & bingkai foreground tidak tertutup
+    const sortedToRender = [...predictions].sort((a, b) => {
+      const areaA = (a.bbox[2] || 0) * (a.bbox[3] || 0);
+      const areaB = (b.bbox[2] || 0) * (b.bbox[3] || 0);
+      return areaB - areaA;
+    });
+
+    sortedToRender.forEach((prediction, idx) => {
       const [rawX, rawY, rawW, rawH] = prediction.bbox;
       const key = `${prediction.class}_${idx}`;
 
@@ -1573,13 +1697,20 @@ document.addEventListener('DOMContentLoaded', () => {
         : (typeof window.translateLabel === 'function' ? window.translateLabel(prediction.class) : prediction.class);
       const scorePercent = Math.round(prediction.score * 100);
 
-      // Tandai dengan ikon 🔍 jika dideteksi via pemindai detail macro
+      // Tandai jika terfilter sebagai background besar
+      const isFilteredBg = Boolean(prediction.isLargeBg && window.IGNORE_BG_MODE);
+      if (isFilteredBg) {
+        ctx.globalAlpha = 0.45; // Redupkan background besar agar foreground menonjol
+      }
+
+      // Tandai dengan ikon 🔍 jika dideteksi via pemindai detail macro, atau 🛡️ jika background terfilter
       const macroBadge = prediction.isMacro ? '🔍 ' : '';
-      let labelText = `${macroBadge}${translatedName} ${prediction.score.toFixed(2)}`;
+      const bgBadge = isFilteredBg ? '🛡️[BG] ' : '';
+      let labelText = `${macroBadge}${bgBadge}${translatedName} ${prediction.score.toFixed(2)}`;
       if (pixelsPerCm && pixelsPerCm > 0) {
         const wCm = (smoothW / pixelsPerCm).toFixed(1);
         const hCm = (smoothH / pixelsPerCm).toFixed(1);
-        labelText = `${macroBadge}${translatedName} ${scorePercent}% (${wCm}×${hCm} cm)`;
+        labelText = `${macroBadge}${bgBadge}${translatedName} ${scorePercent}% (${wCm}×${hCm} cm)`;
       }
 
       // Bounding Box Halus & Glowing
@@ -1635,6 +1766,10 @@ document.addEventListener('DOMContentLoaded', () => {
       ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
       ctx.fillStyle = '#0f172a';
       ctx.fillText(labelText, labelX + paddingX, labelY + paddingY);
+
+      if (isFilteredBg) {
+        ctx.globalAlpha = 1.0; // Pulihkan alpha kembali normal
+      }
     });
 
     smoothedBoxesMap = currentMap;
@@ -2645,6 +2780,84 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // =========================================================================
+  // Kontrol Filter Background Besar (Task 19A: Smart Foreground / Ignore Large BG)
+  // =========================================================================
+  const btnToggleFilterBg = document.getElementById('btnToggleFilterBg');
+  const btnToggleFilterBgPanel = document.getElementById('btnToggleFilterBgPanel');
+  const filterBgStatusVal = document.getElementById('filterBgStatusVal');
+
+  function updateFilterBgUi(isActive) {
+    if (btnToggleFilterBg) {
+      if (isActive) {
+        btnToggleFilterBg.classList.add('active');
+        btnToggleFilterBg.style.color = '#10b981';
+        btnToggleFilterBg.style.borderColor = 'rgba(16, 185, 129, 0.45)';
+        btnToggleFilterBg.style.background = 'rgba(16, 185, 129, 0.15)';
+        btnToggleFilterBg.title = '🛡️ Filter Background Besar: Aktif (Sofa/Meja/Kasur diabaikan) • Klik untuk Matikan';
+      } else {
+        btnToggleFilterBg.classList.remove('active');
+        btnToggleFilterBg.style.color = '#94a3b8';
+        btnToggleFilterBg.style.borderColor = 'rgba(148, 163, 184, 0.3)';
+        btnToggleFilterBg.style.background = 'rgba(148, 163, 184, 0.1)';
+        btnToggleFilterBg.title = '🛡️ Filter Background Besar: Nonaktif (Semua objek dideteksi) • Klik untuk Aktifkan';
+      }
+    }
+
+    if (btnToggleFilterBgPanel) {
+      if (isActive) {
+        btnToggleFilterBgPanel.classList.add('active');
+        btnToggleFilterBgPanel.textContent = '🛡️ Filter Background: ON';
+        btnToggleFilterBgPanel.style.color = '#10b981';
+        btnToggleFilterBgPanel.style.borderColor = 'rgba(16, 185, 129, 0.5)';
+      } else {
+        btnToggleFilterBgPanel.classList.remove('active');
+        btnToggleFilterBgPanel.textContent = '🛡️ Filter Background: OFF';
+        btnToggleFilterBgPanel.style.color = '#94a3b8';
+        btnToggleFilterBgPanel.style.borderColor = 'rgba(148, 163, 184, 0.3)';
+      }
+    }
+
+    if (filterBgStatusVal) {
+      filterBgStatusVal.textContent = isActive ? 'Aktif (ON)' : 'Nonaktif (OFF)';
+      filterBgStatusVal.style.color = isActive ? '#10b981' : '#94a3b8';
+    }
+  }
+
+  function setIgnoreBgMode(isActive, showNotice = true) {
+    window.IGNORE_BG_MODE = !!isActive;
+    localStorage.setItem('benggala_ignore_bg', window.IGNORE_BG_MODE ? 'true' : 'false');
+    updateFilterBgUi(window.IGNORE_BG_MODE);
+
+    // Reset status kuncian Auto-Lock agar target dipilih ulang dengan aturan filter terbaru
+    if (window.BenggalaAutoLock && typeof window.BenggalaAutoLock.reset === 'function') {
+      window.BenggalaAutoLock.reset();
+    }
+
+    if (showNotice) {
+      if (window.IGNORE_BG_MODE) {
+        showToast('🛡️ Filter Background Besar Aktif (Sofa/Meja/Kasur diabaikan dari Auto-Lock)', 'success');
+      } else {
+        showToast('⚠️ Filter Background Nonaktif (Semua objek diizinkan)', 'info');
+      }
+    }
+  }
+
+  if (btnToggleFilterBg) {
+    btnToggleFilterBg.addEventListener('click', () => {
+      setIgnoreBgMode(!window.IGNORE_BG_MODE, true);
+    });
+  }
+
+  if (btnToggleFilterBgPanel) {
+    btnToggleFilterBgPanel.addEventListener('click', () => {
+      setIgnoreBgMode(!window.IGNORE_BG_MODE, true);
+    });
+  }
+
+  // Terapkan status visual awal UI
+  updateFilterBgUi(window.IGNORE_BG_MODE);
+
+  // =========================================================================
   // Event Listeners Smooth Zoom (Slider, Tombol Step, Mouse Wheel, Touch Pinch)
   // =========================================================================
   if (zoomSlider) {
@@ -3432,6 +3645,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.loadHistory = loadHistory;
   window.loadSettings = loadSettings;
   window.getActiveTargetPrediction = () => latestActivePrediction;
+  window.setIgnoreBgMode = setIgnoreBgMode;
 
   // Muat pengaturan awal dari database
   loadSettings();
