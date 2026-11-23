@@ -75,7 +75,7 @@
       window.loadHistory();
     }
     if (targetId === 'sistem') {
-      const sModal = document.getElementById('settingsModal');
+      const sModal = document.getElementById('panelSistem') || document.getElementById('settingsModal');
       if (sModal) sModal.style.display = 'flex';
       if (typeof window.loadSettings === 'function') {
         window.loadSettings();

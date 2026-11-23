@@ -2743,7 +2743,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // =========================================================================
   // 11. Modal Pengaturan & Notifikasi Telegram
   // =========================================================================
-  const settingsModal = document.getElementById('settingsModal');
+  const settingsModal = document.getElementById('panelSistem') || document.getElementById('settingsModal');
   const btnOpenSettings = document.getElementById('btnOpenSettings');
   const btnCloseSettings = document.getElementById('btnCloseSettings');
   const btnCancelSettings = document.getElementById('btnCancelSettings');

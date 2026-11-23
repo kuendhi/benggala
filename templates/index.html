@@ -76,7 +76,7 @@
       <!-- Kanan: Tombol Cepat (Visi 2027, Mode Tenang, Mode Darurat, Settings, Install PWA) -->
       <div class="hud-header-right">
         <button type="button" id="btnRoadmap" class="hud-btn-accent" title="Visi Pengembangan 2027">📡 VISI 2027</button>
-        <button type="button" id="btnOpenKnowledgeHeader" class="hud-btn hud-btn-accent" title="Koreksi & Latih Objek (MobileNet + KNN)" style="border-color: rgba(251, 191, 36, 0.5); color: #fbbf24;">🎯 LATIH</button>
+        <button type="button" id="btnOpenKnowledgeHeader" class="hud-btn hud-btn-knowledge" title="Koreksi & Latih Objek (MobileNet + KNN)">🎯 LATIH</button>
         <button type="button" id="btnQuietMode" class="hud-btn" title="Toggle Mode Tenang (Sembunyikan HUD)">
           🌙
         </button>
@@ -462,68 +462,65 @@
 
     <!-- PANEL 6: PENGATURAN SISTEM DATABASE -->
     <section class="cockpit-panel" id="panelSistem" data-panel="sistem" hidden>
-      <!-- ID settingsModal dipasang di sini untuk kompatibilitas penuh dengan detector.js -->
-      <div id="settingsModal" class="settings-modal-inner">
-        <div class="panel-header">
-          <div class="panel-title-wrapper">
-            <span class="panel-icon">⚙️</span>
-            <h3 class="panel-title">Pengaturan Dinamis Sistem</h3>
-          </div>
-          <button type="button" id="btnCloseSettings" class="btn-close-panel" data-close-panel title="Tutup Panel">✕</button>
+      <div class="panel-header">
+        <div class="panel-title-wrapper">
+          <span class="panel-icon">⚙️</span>
+          <h3 class="panel-title">Pengaturan Dinamis Sistem</h3>
         </div>
-        <div class="panel-body">
-          <!-- Tombol Pintas Visi 2027 (Mudah Diakses dari Layar HP) -->
-          <div style="margin-bottom: 1rem;">
-            <button type="button" class="btn btn-action" id="btnRoadmapFromPanel" style="width: 100%; justify-content: center; background: linear-gradient(135deg, rgba(255, 171, 0, 0.32), rgba(255, 109, 0, 0.45)); border: 1px solid #FFD54F; color: #FFFFFF; font-weight: 700; font-size: 0.85rem; padding: 10px;" onclick="document.getElementById('btnRoadmap').click()">
-              📡 Buka Presentasi Visi Pengembangan 2027
-            </button>
+        <button type="button" id="btnCloseSettings" class="btn-close-panel" data-close-panel title="Tutup Panel">✕</button>
+      </div>
+      <div class="panel-body">
+        <!-- Tombol Pintas Visi 2027 (Mudah Diakses dari Layar HP) -->
+        <div style="margin-bottom: 1rem;">
+          <button type="button" class="btn btn-action" id="btnRoadmapFromPanel" style="width: 100%; justify-content: center; background: linear-gradient(135deg, rgba(255, 171, 0, 0.32), rgba(255, 109, 0, 0.45)); border: 1px solid #FFD54F; color: #FFFFFF; font-weight: 700; font-size: 0.85rem; padding: 10px;" onclick="document.getElementById('btnRoadmap').click()">
+            📡 Buka Presentasi Visi Pengembangan 2027
+          </button>
+        </div>
+
+        <!-- Konfigurasi LLM -->
+        <div class="settings-section">
+          <h4 class="section-title">Konfigurasi AI & LLM</h4>
+          <div class="form-group">
+            <label for="setLlmProvider">Provider Default</label>
+            <select id="setLlmProvider" class="form-select">
+              <option value="gemini" selected>Google Gemini</option>
+              <option value="deepseek">DeepSeek</option>
+            </select>
           </div>
-
-          <!-- Konfigurasi LLM -->
-          <div class="settings-section">
-            <h4 class="section-title">Konfigurasi AI & LLM</h4>
-            <div class="form-group">
-              <label for="setLlmProvider">Provider Default</label>
-              <select id="setLlmProvider" class="form-select">
-                <option value="gemini" selected>Google Gemini</option>
-                <option value="deepseek">DeepSeek</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="setDeepSeekKey">DeepSeek API Key</label>
-              <input type="password" id="setDeepSeekKey" class="form-input" placeholder="Masukkan DeepSeek API Key">
-            </div>
-            <div class="form-group">
-              <label for="setGeminiKey">Gemini API Key</label>
-              <input type="password" id="setGeminiKey" class="form-input" placeholder="Masukkan Gemini API Key">
-            </div>
+          <div class="form-group">
+            <label for="setDeepSeekKey">DeepSeek API Key</label>
+            <input type="password" id="setDeepSeekKey" class="form-input" placeholder="Masukkan DeepSeek API Key">
           </div>
-
-          <div class="action-divider"></div>
-
-          <!-- Notifikasi Telegram (CCTV) -->
-          <div class="settings-section">
-            <h4 class="section-title">Notifikasi Telegram (CCTV)</h4>
-            <div class="form-group checkbox-group">
-              <label class="checkbox-container">
-                <input type="checkbox" id="setTelegramEnabled">
-                <span class="checkbox-label" style="font-weight: 600; color: var(--text);">Aktifkan Notifikasi Telegram</span>
-              </label>
-            </div>
-            <div class="form-group">
-              <label for="setTelegramToken">Telegram Bot Token</label>
-              <input type="password" id="setTelegramToken" class="form-input" placeholder="Contoh: 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ">
-            </div>
-            <div class="form-group">
-              <label for="setTelegramChatId">Telegram Chat ID</label>
-              <input type="text" id="setTelegramChatId" class="form-input" placeholder="Contoh: 987654321">
-            </div>
+          <div class="form-group">
+            <label for="setGeminiKey">Gemini API Key</label>
+            <input type="password" id="setGeminiKey" class="form-input" placeholder="Masukkan Gemini API Key">
           </div>
         </div>
-        <div class="panel-footer">
-          <button type="button" id="btnCancelSettings" class="btn btn-secondary" data-close-panel>Batal</button>
-          <button type="button" id="btnSaveSettings" class="btn btn-primary">💾 Simpan Pengaturan</button>
+
+        <div class="action-divider"></div>
+
+        <!-- Notifikasi Telegram (CCTV) -->
+        <div class="settings-section">
+          <h4 class="section-title">Notifikasi Telegram (CCTV)</h4>
+          <div class="form-group checkbox-group">
+            <label class="checkbox-container">
+              <input type="checkbox" id="setTelegramEnabled">
+              <span class="checkbox-label" style="font-weight: 600; color: var(--text);">Aktifkan Notifikasi Telegram</span>
+            </label>
+          </div>
+          <div class="form-group">
+            <label for="setTelegramToken">Telegram Bot Token</label>
+            <input type="password" id="setTelegramToken" class="form-input" placeholder="Contoh: 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ">
+          </div>
+          <div class="form-group">
+            <label for="setTelegramChatId">Telegram Chat ID</label>
+            <input type="text" id="setTelegramChatId" class="form-input" placeholder="Contoh: 987654321">
+          </div>
         </div>
+      </div>
+      <div class="panel-footer">
+        <button type="button" id="btnCancelSettings" class="btn btn-secondary" data-close-panel>Batal</button>
+        <button type="button" id="btnSaveSettings" class="btn btn-primary">💾 Simpan Pengaturan</button>
       </div>
     </section>
 
