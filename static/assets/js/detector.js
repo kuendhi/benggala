@@ -1704,10 +1704,37 @@ document.addEventListener('DOMContentLoaded', () => {
       ? window.BenggalaMissions.getActivePrompt()
       : '';
 
+    // Deteksi label kustom dan kategori misi (Task 16C Visual Few-Shot)
+    let customLabel = '';
+    const activeTarget = (typeof window.getActiveTargetPrediction === 'function' ? window.getActiveTargetPrediction() : null)
+      || (currentPredictions && currentPredictions[0]) || null;
+    if (activeTarget) {
+      if (activeTarget.customLabel) {
+        customLabel = String(activeTarget.customLabel).replace(/^★\s*/, '').trim();
+      } else if (activeTarget.class && String(activeTarget.class).startsWith('★')) {
+        customLabel = String(activeTarget.class).replace(/^★\s*/, '').trim();
+      }
+    }
+
+    let missionCategory = '';
+    if (window.BenggalaMissions && typeof window.BenggalaMissions.getActiveMission === 'function') {
+      const activeMission = window.BenggalaMissions.getActiveMission();
+      if (activeMission && activeMission.id) {
+        missionCategory = activeMission.id;
+      }
+    }
+
     const requestPayload = {
       provider: provider,
       objects: detectedObjects
     };
+
+    if (customLabel) {
+      requestPayload.custom_label = customLabel;
+    }
+    if (missionCategory) {
+      requestPayload.mission_category = missionCategory;
+    }
 
     if (activeMissionPrompt) {
       requestPayload.mission_prompt = activeMissionPrompt;
@@ -1740,6 +1767,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (llmAnalysisContent) {
           llmAnalysisContent.textContent = result.analysis;
+        }
+
+        const llmReferencesBadge = document.getElementById('llmReferencesBadge');
+        if (llmReferencesBadge) {
+          if (result.references_used && result.references_used > 0) {
+            const labelsList = (result.reference_labels || []).join(', ');
+            llmReferencesBadge.textContent = `🧠 Referensi DB: ${result.references_used} foto (${labelsList})`;
+            llmReferencesBadge.style.display = 'inline-block';
+          } else {
+            llmReferencesBadge.style.display = 'none';
+          }
         }
 
         // Siapkan data kartu Target Dossier (Task 12B)
@@ -1845,11 +1883,34 @@ document.addEventListener('DOMContentLoaded', () => {
       ? window.BenggalaMissions.getActivePrompt()
       : '';
 
+    let customLabelAuto = '';
+    if (targetPrediction) {
+      if (targetPrediction.customLabel) {
+        customLabelAuto = String(targetPrediction.customLabel).replace(/^★\s*/, '').trim();
+      } else if (targetPrediction.class && String(targetPrediction.class).startsWith('★')) {
+        customLabelAuto = String(targetPrediction.class).replace(/^★\s*/, '').trim();
+      }
+    }
+
+    let missionCategoryAuto = '';
+    if (window.BenggalaMissions && typeof window.BenggalaMissions.getActiveMission === 'function') {
+      const activeMission = window.BenggalaMissions.getActiveMission();
+      if (activeMission && activeMission.id) {
+        missionCategoryAuto = activeMission.id;
+      }
+    }
+
     const requestPayload = {
       provider: provider,
       objects: detectedObjects,
       log_id: logId
     };
+    if (customLabelAuto) {
+      requestPayload.custom_label = customLabelAuto;
+    }
+    if (missionCategoryAuto) {
+      requestPayload.mission_category = missionCategoryAuto;
+    }
     if (activeMissionPrompt) {
       requestPayload.mission_prompt = activeMissionPrompt;
     }
@@ -1880,6 +1941,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (llmAnalysisContent) {
           llmAnalysisContent.textContent = result.analysis;
+        }
+
+        const llmReferencesBadge = document.getElementById('llmReferencesBadge');
+        if (llmReferencesBadge) {
+          if (result.references_used && result.references_used > 0) {
+            const labelsList = (result.reference_labels || []).join(', ');
+            llmReferencesBadge.textContent = `🧠 Referensi DB: ${result.references_used} foto (${labelsList})`;
+            llmReferencesBadge.style.display = 'inline-block';
+          } else {
+            llmReferencesBadge.style.display = 'none';
+          }
         }
 
         showToast(`Analisis AI tersimpan ke galeri (${result.provider_used})!`, 'success');

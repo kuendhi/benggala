@@ -5,10 +5,11 @@ import json
 import base64
 import secrets
 from datetime import datetime
+from typing import Optional, List, Dict, Tuple, Any
 import requests
 from PIL import Image
 from flask import Blueprint, request, jsonify, current_app
-from core.database import db_execute, db_fetch_one, get_all_settings
+from core.database import db_execute, db_fetch_one, db_fetch_all, get_all_settings
 from core.security import require_api_security, sanitize_filename
 
 ai_snapshot_bp = Blueprint('ai_snapshot', __name__)
@@ -16,6 +17,7 @@ ai_snapshot_bp = Blueprint('ai_snapshot', __name__)
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
 SNAPSHOTS_DIR = os.path.join(PROJECT_ROOT, 'uploads', 'snapshots')
+KNOWLEDGE_DIR = os.path.join(PROJECT_ROOT, 'uploads', 'knowledge')
 
 # -----------------------------------------------------------------------------
 # Helper: Pengiriman Notifikasi Telegram
@@ -40,10 +42,143 @@ def _send_telegram_photo(bot_token: str, chat_id: str, image_bytes: bytes, capti
         return False
 
 # -----------------------------------------------------------------------------
+# Helper: Pencarian Referensi Visual Few-Shot dari custom_objects (Task 16C)
+# -----------------------------------------------------------------------------
+def _get_reference_samples(custom_label: str = '', objects_text: str = '', category: str = '', limit: int = 3) -> List[Dict[str, Any]]:
+    """
+    Mengambil maksimal `limit` (default 3) sampel foto dan metadata dari tabel custom_objects
+    untuk mendukung Visual Few-Shot learning pada Gemini Vision dan kamus teks pada DeepSeek.
+    """
+    clean_custom_label = str(custom_label or '').replace('★', '').strip()
+    clean_category = str(category or '').strip().lower()
+    
+    references = []
+    seen_ids = set()
+
+    try:
+        # 1. Prioritas 1: Jika custom_label terisi (hasil kecocokan KNN browser)
+        if clean_custom_label:
+            rows = db_fetch_all("""
+                SELECT id, label_name, category, notes, image_path, created_at
+                FROM custom_objects
+                WHERE label_name = %s
+                ORDER BY created_at DESC
+                LIMIT 2
+            """, (clean_custom_label,)) or []
+
+            for r in rows:
+                if r['id'] not in seen_ids:
+                    seen_ids.add(r['id'])
+                    references.append(r)
+
+            # Jika belum mencapai limit, lengkapi dari kelas berbeda terbaru
+            if len(references) < limit:
+                other_rows = db_fetch_all("""
+                    SELECT id, label_name, category, notes, image_path, created_at
+                    FROM custom_objects
+                    WHERE label_name != %s
+                    ORDER BY created_at DESC
+                    LIMIT 20
+                """, (clean_custom_label,)) or []
+
+                seen_labels = {r['label_name'] for r in references}
+                for r in other_rows:
+                    if r['id'] not in seen_ids and r['label_name'] not in seen_labels:
+                        seen_ids.add(r['id'])
+                        seen_labels.add(r['label_name'])
+                        references.append(r)
+                        if len(references) >= limit:
+                            break
+
+        # 2. Prioritas 2: Jika custom_label kosong tapi category terisi (misal mode misi aktif)
+        elif clean_category and clean_category != 'umum':
+            rows = db_fetch_all("""
+                SELECT id, label_name, category, notes, image_path, created_at
+                FROM custom_objects
+                WHERE category = %s
+                ORDER BY created_at DESC
+                LIMIT 20
+            """, (clean_category,)) or []
+
+            seen_labels = set()
+            for r in rows:
+                if r['label_name'] not in seen_labels and r['id'] not in seen_ids:
+                    seen_ids.add(r['id'])
+                    seen_labels.add(r['label_name'])
+                    references.append(r)
+                    if len(references) >= limit:
+                        break
+
+        # 3. Prioritas 3: Jika keduanya kosong, ambil sampel terbaru dengan label_name berbeda
+        if len(references) < limit:
+            rows = db_fetch_all("""
+                SELECT id, label_name, category, notes, image_path, created_at
+                FROM custom_objects
+                ORDER BY created_at DESC
+                LIMIT 30
+            """) or []
+
+            seen_labels = {r['label_name'] for r in references}
+            for r in rows:
+                if r['id'] not in seen_ids and r['label_name'] not in seen_labels:
+                    seen_ids.add(r['id'])
+                    seen_labels.add(r['label_name'])
+                    references.append(r)
+                    if len(references) >= limit:
+                        break
+
+    except Exception as e:
+        current_app.logger.warning(f"Error fetching reference samples from custom_objects: {e}")
+        return []
+
+    # Validasi fisik berkas gambar & konversi ke Base64 (dibatasi maks 300 KB per referensi)
+    valid_samples = []
+    for row in references[:limit]:
+        raw_path = row.get('image_path') or ''
+        clean_name = sanitize_filename(os.path.basename(raw_path))
+        file_path = os.path.join(KNOWLEDGE_DIR, clean_name)
+
+        if not os.path.isfile(file_path):
+            continue
+
+        try:
+            file_size = os.path.getsize(file_path)
+            if file_size > 300 * 1024:
+                # Kompresi on-the-fly jika berkas referensi melebihi 300 KB
+                with Image.open(file_path) as im:
+                    buf = io.BytesIO()
+                    im.save(buf, format='JPEG', quality=75)
+                    b64_data = base64.b64encode(buf.getvalue()).decode('utf-8')
+            else:
+                with open(file_path, 'rb') as f:
+                    b64_data = base64.b64encode(f.read()).decode('utf-8')
+
+            valid_samples.append({
+                "label_name": row.get('label_name', ''),
+                "category": row.get('category', 'umum'),
+                "notes": row.get('notes', ''),
+                "image_b64": b64_data
+            })
+        except Exception as read_err:
+            current_app.logger.warning(f"Gagal membaca foto referensi {file_path}: {read_err}")
+            continue
+
+    return valid_samples
+
+# -----------------------------------------------------------------------------
 # Helper: Integrasi Provider AI (Gemini & DeepSeek)
 # -----------------------------------------------------------------------------
-def _call_gemini_vision(api_key: str, prompt: str, image_b64: str = None, system_prompt: str = None) -> tuple[bool, str]:
-    """Memanggil Google Gemini API 2.5 Flash dengan timeout 20 detik."""
+def _call_gemini_vision(
+    api_key: str,
+    prompt: str,
+    image_b64: Optional[str] = None,
+    system_prompt: Optional[str] = None,
+    references: Optional[List[Dict[str, Any]]] = None
+) -> Tuple[bool, str]:
+    """
+    Memanggil Google Gemini API 2.5 Flash dengan dukungan Multi-Image Visual Few-Shot
+    menggunakan foto referensi dari custom_objects dan timeout 25 detik.
+    """
     if not api_key or api_key == 'ISI_API_KEY_ANDA_DISINI':
         return False, "Gemini API Key belum dikonfigurasi."
 
@@ -54,12 +189,41 @@ def _call_gemini_vision(api_key: str, prompt: str, image_b64: str = None, system
     }
 
     parts = []
+
+    # 1. Foto & Teks Referensi Database Terverifikasi (Visual Few-Shot)
+    if references:
+        intro_text = (
+            "Berikut adalah foto referensi objek terverifikasi dari database lokal pengguna. "
+            "Bandingkan foto target kamera dengan referensi berikut terlebih dahulu. "
+            "Jika cocok, wajib gunakan nama & ciri referensi tersebut. "
+            "Jika tidak cocok dengan referensi mana pun, analisis objek secara normal sesuai kenyataan."
+        )
+        parts.append({"text": intro_text})
+
+        for idx, ref in enumerate(references[:3], start=1):
+            ref_label = ref.get('label_name', '')
+            ref_cat = ref.get('category', 'umum')
+            ref_notes = ref.get('notes') or '-'
+            ref_text = f"[REFERENSI #{idx}] Nama: {ref_label} | Kategori: {ref_cat} | Ciri Khusus: {ref_notes}"
+            parts.append({"text": ref_text})
+
+            ref_img_b64 = ref.get('image_b64')
+            if ref_img_b64:
+                parts.append({
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": ref_img_b64
+                    }
+                })
+
+    # 2. Foto Target Kamera & Prompt Utama Analisis
+    camera_target_intro = "[FOTO TARGET KAMERA SAAT INI]\n" + prompt
     if image_b64:
         clean_b64 = image_b64
         if ',' in clean_b64:
             clean_b64 = clean_b64.split(',', 1)[1]
         parts.append({
-            "text": prompt + "\nAnalisa juga secara visual dari foto terlampir: sebutkan kondisi, perkiraan ukuran, dan konteks dalam Bahasa Indonesia."
+            "text": camera_target_intro + "\nAnalisa juga secara visual dari foto terlampir: sebutkan kondisi, perkiraan ukuran, dan konteks dalam Bahasa Indonesia."
         })
         parts.append({
             "inline_data": {
@@ -68,7 +232,7 @@ def _call_gemini_vision(api_key: str, prompt: str, image_b64: str = None, system
             }
         })
     else:
-        parts.append({"text": prompt})
+        parts.append({"text": camera_target_intro})
 
     payload = {
         "contents": [{"parts": parts}]
@@ -80,7 +244,7 @@ def _call_gemini_vision(api_key: str, prompt: str, image_b64: str = None, system
         }
 
     try:
-        resp = requests.post(url, json=payload, headers=headers, timeout=20)
+        resp = requests.post(url, json=payload, headers=headers, timeout=25)
         if resp.status_code == 200:
             data = resp.json()
             candidates = data.get('candidates', [])
@@ -95,8 +259,16 @@ def _call_gemini_vision(api_key: str, prompt: str, image_b64: str = None, system
     except Exception as e:
         return False, f"Koneksi ke Gemini gagal: {str(e)}"
 
-def _call_deepseek_text(api_key: str, system_prompt: str, user_prompt: str) -> tuple[bool, str]:
-    """Memanggil DeepSeek Chat API dengan timeout 20 detik."""
+def _call_deepseek_text(
+    api_key: str,
+    system_prompt: Optional[str],
+    user_prompt: str,
+    references: Optional[List[Dict[str, Any]]] = None
+) -> Tuple[bool, str]:
+    """
+    Memanggil DeepSeek Chat API dengan penyertaan konteks ringkasan kamus objek
+    lokal jika referensi tersedia, dengan timeout 20 detik.
+    """
     if not api_key or api_key == 'ISI_DEEPSEEK_API_KEY_DISINI':
         return False, "DeepSeek API Key belum dikonfigurasi."
 
@@ -107,11 +279,27 @@ def _call_deepseek_text(api_key: str, system_prompt: str, user_prompt: str) -> t
         'Authorization': f'Bearer {api_key}'
     }
 
+    # Sisipkan ringkasan kamus teks referensi jika tersedia
+    enhanced_user_prompt = user_prompt
+    if references:
+        ref_lines = []
+        for idx, ref in enumerate(references[:3], start=1):
+            ref_label = ref.get('label_name', '')
+            ref_cat = ref.get('category', 'umum')
+            ref_notes = ref.get('notes') or '-'
+            ref_lines.append(f"• Referensi #{idx}: Nama='{ref_label}', Kategori='{ref_cat}', Ciri='{ref_notes}'")
+        ref_context = (
+            "\n\n[Kamus Objek Terverifikasi Database Pengguna]\n" +
+            "\n".join(ref_lines) +
+            "\nJika objek yang terdeteksi mirip atau cocok dengan referensi di atas, prioritaskan menyebutkan nama dan karakteristik tersebut."
+        )
+        enhanced_user_prompt += ref_context
+
     payload = {
         "model": model,
         "messages": [
             {"role": "system", "content": (system_prompt or "Anda adalah asisten AI Benggala.")[:600]},
-            {"role": "user", "content": user_prompt}
+            {"role": "user", "content": enhanced_user_prompt}
         ]
     }
 
@@ -316,6 +504,17 @@ def analyze_ai():
             user_prompt = "Berikan analisis deteksi visual kamera saat ini dalam Bahasa Indonesia."
 
     image_b64 = payload.get('image')
+    custom_label = (payload.get('custom_label') or '').strip()
+    mission_category = (payload.get('mission_category') or '').strip()
+
+    # Ambil sampel referensi visual (maksimal 3) dari custom_objects
+    references = _get_reference_samples(
+        custom_label=custom_label,
+        objects_text=user_prompt,
+        category=mission_category,
+        limit=3
+    )
+
     log_id = payload.get('log_id')
     try:
         log_id = int(log_id) if log_id else None
@@ -329,9 +528,9 @@ def analyze_ai():
     error_secondary = None
 
     if primary == 'gemini':
-        success, result_text = _call_gemini_vision(gemini_key, user_prompt, image_b64, system_prompt)
+        success, result_text = _call_gemini_vision(gemini_key, user_prompt, image_b64, system_prompt, references=references)
     else:
-        success, result_text = _call_deepseek_text(deepseek_key, system_prompt, user_prompt)
+        success, result_text = _call_deepseek_text(deepseek_key, system_prompt, user_prompt, references=references)
 
     if not success:
         error_primary = result_text
@@ -342,9 +541,9 @@ def analyze_ai():
         fallback_triggered = True
         used_provider = secondary
         if secondary == 'gemini':
-            success, result_text = _call_gemini_vision(gemini_key, user_prompt, image_b64, system_prompt)
+            success, result_text = _call_gemini_vision(gemini_key, user_prompt, image_b64, system_prompt, references=references)
         else:
-            success, result_text = _call_deepseek_text(deepseek_key, system_prompt, user_prompt)
+            success, result_text = _call_deepseek_text(deepseek_key, system_prompt, user_prompt, references=references)
 
         if not success:
             error_secondary = result_text
@@ -377,6 +576,8 @@ def analyze_ai():
     is_php_path = request.path.endswith('.php')
     status_str = "success" if is_php_path else "ok"
 
+    ref_labels = [r.get('label_name', '') for r in references]
+
     return jsonify({
         "status": status_str,
         "success": True,
@@ -384,7 +585,9 @@ def analyze_ai():
         "provider_used": used_provider,
         "analysis": result_text,
         "fallback_triggered": fallback_triggered,
-        "log_id": log_id
+        "log_id": log_id,
+        "references_used": len(references),
+        "reference_labels": ref_labels
     }), 200
 
 # -----------------------------------------------------------------------------
