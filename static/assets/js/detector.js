@@ -392,7 +392,13 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error('Library COCO-SSD tidak termuat. Periksa koneksi internet ke CDN.');
       }
 
-      model = await cocoSsd.load();
+      // Gunakan mobilenet_v2 untuk ekstraksi fitur spasial lebih detail pada objek kecil
+      try {
+        model = await cocoSsd.load({ base: 'mobilenet_v2' });
+      } catch (errV2) {
+        console.warn('Gagal memuat mobilenet_v2, fallback ke default lite_mobilenet_v2:', errV2);
+        model = await cocoSsd.load();
+      }
 
       // Update badge status UI
       modelStatus.classList.remove('loading', 'error');
@@ -988,8 +994,62 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
-  // 3. Loop Deteksi Real-Time (requestAnimationFrame + model.detect)
+  // 3. Loop Deteksi Real-Time Multi-Skala (requestAnimationFrame + Macro Scanner)
+  // Memadukan Pemindaian Global (Wide) dan Pemindaian Detail Macro (High-Res Crop)
+  // untuk Menangkap Objek Kecil Secara Presisi Tanpa Membebani Kinerja
   // =========================================================================
+  const macroCanvas = document.createElement('canvas');
+  macroCanvas.width = 360;
+  macroCanvas.height = 360;
+  const macroCtx = macroCanvas.getContext('2d', { willReadFrequently: true });
+
+  const zoomFeedCanvas = document.createElement('canvas');
+  zoomFeedCanvas.width = 640;
+  zoomFeedCanvas.height = 480;
+  const zoomFeedCtx = zoomFeedCanvas.getContext('2d', { willReadFrequently: true });
+
+  let frameScanIndex = 0;
+  let lastGlobalDetections = [];
+  let lastMacroDetections = [];
+
+  function calculateIoU(boxA, boxB) {
+    const xA = Math.max(boxA[0], boxB[0]);
+    const yA = Math.max(boxA[1], boxB[1]);
+    const xB = Math.min(boxA[0] + boxA[2], boxB[0] + boxB[2]);
+    const yB = Math.min(boxA[1] + boxA[3], boxB[1] + boxB[3]);
+
+    const interArea = Math.max(0, xB - xA) * Math.max(0, yB - yA);
+    if (interArea <= 0) return 0;
+
+    const areaA = boxA[2] * boxA[3];
+    const areaB = boxB[2] * boxB[3];
+    return interArea / (areaA + areaB - interArea);
+  }
+
+  function mergeMultiScaleDetections(globals, macros) {
+    const merged = [...globals];
+    for (const macro of macros) {
+      let matchedIdx = -1;
+      let maxIou = 0;
+      for (let i = 0; i < merged.length; i++) {
+        const iou = calculateIoU(merged[i].bbox, macro.bbox);
+        if (iou > maxIou) {
+          maxIou = iou;
+          matchedIdx = i;
+        }
+      }
+
+      if (matchedIdx >= 0 && maxIou > 0.30) {
+        if (macro.score > merged[matchedIdx].score) {
+          merged[matchedIdx] = macro;
+        }
+      } else {
+        merged.push(macro);
+      }
+    }
+    return merged;
+  }
+
   function startDetectionLoop() {
     let frameCount = 0;
     let currentFps = 0;
@@ -1003,8 +1063,81 @@ document.addEventListener('DOMContentLoaded', () => {
         syncCanvasDimensions();
 
         try {
-          const predictions = await model.detect(video);
-          const filtered = predictions.filter(pred => pred.score >= minConfidence);
+          const vw = video.videoWidth || 640;
+          const vh = video.videoHeight || 480;
+          const detectMinScore = Math.max(0.18, Math.min(minConfidence * 0.85, 0.30));
+
+          if (frameScanIndex % 2 === 0) {
+            // Fase 1: Pemindaian Global (Wide Scene)
+            let scanInput = video;
+            let zoomScale = 1.0;
+            let zoomOffsetX = 0;
+            let zoomOffsetY = 0;
+
+            if (currentZoom > 1.05) {
+              const cropW = vw / currentZoom;
+              const cropH = vh / currentZoom;
+              zoomOffsetX = (vw - cropW) / 2;
+              zoomOffsetY = (vh - cropH) / 2;
+              zoomFeedCtx.drawImage(video, zoomOffsetX, zoomOffsetY, cropW, cropH, 0, 0, zoomFeedCanvas.width, zoomFeedCanvas.height);
+              scanInput = zoomFeedCanvas;
+              zoomScale = cropW / zoomFeedCanvas.width;
+            }
+
+            const rawGlobal = await model.detect(scanInput, 40, detectMinScore);
+
+            if (currentZoom > 1.05) {
+              lastGlobalDetections = rawGlobal.map(p => ({
+                class: p.class,
+                score: p.score,
+                isMacro: false,
+                bbox: [
+                  zoomOffsetX + p.bbox[0] * zoomScale,
+                  zoomOffsetY + p.bbox[1] * zoomScale,
+                  p.bbox[2] * zoomScale,
+                  p.bbox[3] * zoomScale
+                ]
+              }));
+            } else {
+              lastGlobalDetections = rawGlobal.map(p => ({ ...p, isMacro: false }));
+            }
+          } else {
+            // Fase 2: Pemindaian Detail Macro (High-Resolution Center / Focus Crop)
+            let cropW = Math.round(vw * 0.52);
+            let cropH = Math.round(vh * 0.52);
+            let cropX = Math.round((vw - cropW) / 2);
+            let cropY = Math.round((vh - cropH) / 2);
+
+            // Jika pengguna memfokuskan titik tertentu (Double-Tap Focus), pusatkan jendela macro ke titik fokus
+            if (focusState.active && focusState.canvasX !== null && focusState.canvasY !== null) {
+              cropX = Math.max(0, Math.min(vw - cropW, Math.round(focusState.canvasX - cropW / 2)));
+              cropY = Math.max(0, Math.min(vh - cropH, Math.round(focusState.canvasY - cropH / 2)));
+            }
+
+            macroCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, macroCanvas.width, macroCanvas.height);
+
+            const rawMacro = await model.detect(macroCanvas, 25, detectMinScore);
+            const scaleX = cropW / macroCanvas.width;
+            const scaleY = cropH / macroCanvas.height;
+
+            lastMacroDetections = rawMacro.map(p => ({
+              class: p.class,
+              score: p.score,
+              isMacro: true,
+              bbox: [
+                cropX + (p.bbox[0] * scaleX),
+                cropY + (p.bbox[1] * scaleY),
+                p.bbox[2] * scaleX,
+                p.bbox[3] * scaleY
+              ]
+            }));
+          }
+
+          frameScanIndex = (frameScanIndex + 1) % 2;
+
+          // Gabungkan hasil pemindaian multi-skala (Global + Macro)
+          const combined = mergeMultiScaleDetections(lastGlobalDetections, lastMacroDetections);
+          const filtered = combined.filter(pred => pred.score >= minConfidence);
           currentPredictions = filtered;
           lastPredictions = filtered;
 
@@ -1190,30 +1323,61 @@ document.addEventListener('DOMContentLoaded', () => {
 
       currentMap.set(key, { x: smoothX, y: smoothY, width: smoothW, height: smoothH });
 
+      const isSmallObj = (smoothW < 80 || smoothH < 80);
+      const itemFontSize = isSmallObj ? Math.max(11, 11 * scale) : fontSize;
+      ctx.font = `bold ${itemFontSize}px sans-serif`;
+
       const color = getColorForClass(prediction.class);
       const translatedName = typeof window.translateLabel === 'function' ? window.translateLabel(prediction.class) : prediction.class;
       const scorePercent = Math.round(prediction.score * 100);
 
-      let labelText = `${translatedName} ${prediction.score.toFixed(2)}`;
+      // Tandai dengan ikon 🔍 jika dideteksi via pemindai detail macro
+      const macroBadge = prediction.isMacro ? '🔍 ' : '';
+      let labelText = `${macroBadge}${translatedName} ${prediction.score.toFixed(2)}`;
       if (pixelsPerCm && pixelsPerCm > 0) {
         const wCm = (smoothW / pixelsPerCm).toFixed(1);
         const hCm = (smoothH / pixelsPerCm).toFixed(1);
-        labelText = `${translatedName} ${scorePercent}% (${wCm}×${hCm} cm)`;
+        labelText = `${macroBadge}${translatedName} ${scorePercent}% (${wCm}×${hCm} cm)`;
       }
 
-      // Bounding Box Halus
+      // Bounding Box Halus & Glowing
       ctx.strokeStyle = color;
       ctx.lineWidth = lineWidth;
       ctx.shadowColor = color;
-      ctx.shadowBlur = 6 * scale;
+      ctx.shadowBlur = (isSmallObj ? 8 : 5) * scale;
       ctx.strokeRect(smoothX, smoothY, smoothW, smoothH);
+
+      // Gambar reticle sudut taktis untuk objek kecil agar bingkai lebih tegas
+      if (isSmallObj) {
+        const cLen = Math.max(5, Math.min(12, Math.min(smoothW, smoothH) * 0.35));
+        ctx.lineWidth = lineWidth * 1.5;
+        ctx.beginPath();
+        // Pojok kiri atas
+        ctx.moveTo(smoothX, smoothY + cLen);
+        ctx.lineTo(smoothX, smoothY);
+        ctx.lineTo(smoothX + cLen, smoothY);
+        // Pojok kanan atas
+        ctx.moveTo(smoothX + smoothW - cLen, smoothY);
+        ctx.lineTo(smoothX + smoothW);
+        ctx.lineTo(smoothX + smoothW, smoothY + cLen);
+        // Pojok kiri bawah
+        ctx.moveTo(smoothX, smoothY + smoothH - cLen);
+        ctx.lineTo(smoothX, smoothY + smoothH);
+        ctx.lineTo(smoothX + cLen, smoothY + smoothH);
+        // Pojok kanan bawah
+        ctx.moveTo(smoothX + smoothW - cLen, smoothY + smoothH);
+        ctx.lineTo(smoothX + smoothW);
+        ctx.lineTo(smoothX + smoothW, smoothY + smoothH - cLen);
+        ctx.stroke();
+        ctx.lineWidth = lineWidth;
+      }
       ctx.shadowBlur = 0;
 
       // Label background & text kontras tinggi
       const textMetrics = ctx.measureText(labelText);
-      const paddingX = 8 * scale;
-      const paddingY = 4 * scale;
-      const labelHeight = fontSize + (paddingY * 2);
+      const paddingX = (isSmallObj ? 5 : 8) * scale;
+      const paddingY = (isSmallObj ? 2 : 4) * scale;
+      const labelHeight = itemFontSize + (paddingY * 2);
       const labelWidth = textMetrics.width + (paddingX * 2);
 
       let labelY = smoothY - labelHeight;
@@ -2412,6 +2576,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (setTelegramChatId && d.telegram_chat_id) {
           setTelegramChatId.value = d.telegram_chat_id;
+        }
+        if (d.detection_threshold || d.confidence_threshold) {
+          const tVal = parseInt(d.detection_threshold || d.confidence_threshold);
+          if (!isNaN(tVal) && thresholdSlider) {
+            thresholdSlider.value = tVal;
+            if (thresholdVal) thresholdVal.textContent = `${tVal}%`;
+            minConfidence = tVal / 100;
+          }
         }
       }
     } catch (e) {
