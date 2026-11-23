@@ -1023,15 +1023,16 @@ def telegram_send():
 # 4. POST /api/ai/chat-item (Interaksi Percakapan AI Khusus Objek Terkunci)
 # -----------------------------------------------------------------------------
 @ai_snapshot_bp.route('/api/ai/chat-item', methods=['POST'])
+@ai_snapshot_bp.route('/api/ai/followup', methods=['POST'])
 @require_api_security(max_requests=60, window_seconds=60)
 def chat_item_ai():
     """
-    Endpoint percakapan AI interaktif dua arah mengenai objek yang terkunci.
+    Endpoint percakapan AI interaktif dua arah mengenai objek yang terkunci (Web & Android Voice).
     Menerima pesan pertanyaan user, riwayat obrolan (history), konteks profil objek,
     serta foto snapshot (jika ada) untuk dianalisis oleh Gemini Vision / DeepSeek.
     """
     payload = request.get_json(silent=True) or {}
-    message = str(payload.get('message') or '').strip()
+    message = str(payload.get('message') or payload.get('question') or '').strip()
     if not message:
         return jsonify({
             "status": "error",
@@ -1040,11 +1041,11 @@ def chat_item_ai():
 
     item_ctx = payload.get('item_context') or {}
     history = payload.get('history') or []
-    image_b64 = payload.get('image')
+    image_b64 = payload.get('image') or payload.get('image_path')
 
-    title = str(item_ctx.get('title') or item_ctx.get('label') or 'Objek').strip()
-    category = str(item_ctx.get('category') or 'Umum').strip()
-    utility = str(item_ctx.get('utility') or '-').strip()
+    title = str(item_ctx.get('title') or item_ctx.get('label') or payload.get('object_name') or 'Objek').strip()
+    category = str(item_ctx.get('category') or payload.get('category') or 'Umum').strip()
+    utility = str(item_ctx.get('utility') or payload.get('previous_summary') or '-').strip()
     detail = str(item_ctx.get('detail') or '-').strip()
     safety = str(item_ctx.get('safety') or 'aman').strip()
     safety_note = str(item_ctx.get('safetyNote') or '-').strip()
@@ -1144,6 +1145,7 @@ def chat_item_ai():
     return jsonify({
         "status": "ok",
         "reply": reply_text,
+        "answer": reply_text,
         "provider": provider_used,
         "model": model_used
     }), 200
