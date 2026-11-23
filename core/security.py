@@ -22,38 +22,68 @@ def get_client_ip() -> str:
         return request.headers.get('X-Real-IP').strip()
     return request.remote_addr or '127.0.0.1'
 
+def _extract_hostname(url_or_host: str) -> str:
+    """Helper internal untuk mengekstrak nama host (huruf kecil) tanpa port atau protokol."""
+    if not url_or_host:
+        return ''
+    cleaned = url_or_host.strip()
+    if not cleaned:
+        return ''
+    if '://' in cleaned:
+        parsed = urlparse(cleaned)
+    else:
+        parsed = urlparse('//' + cleaned)
+    return (parsed.hostname or cleaned.split(':')[0]).lower()
+
 def is_same_origin() -> bool:
     """
-    Validasi Same-Origin dengan memeriksa Origin atau Referer terhadap host request saat ini.
-    Izinkan jika kosong HANYA pada lingkungan lokal (127.0.0.1 / localhost).
+    Validasi Same-Origin dengan membandingkan hostname saja dari Origin atau Referer
+    terhadap request.host dan header X-Forwarded-Host via urllib.parse.urlparse.
+    Mencegah kegagalan akibat perbedaan http/https, port reverse proxy cPanel,
+    atau subfolder /benggala.
     """
+    allowed_hosts = set()
+    if request.host:
+        h = _extract_hostname(request.host)
+        if h:
+            allowed_hosts.add(h)
+
+    xfh = request.headers.get('X-Forwarded-Host', '')
+    if xfh:
+        for part in xfh.split(','):
+            h = _extract_hostname(part)
+            if h:
+                allowed_hosts.add(h)
+
     origin = request.headers.get('Origin', '').strip()
-    referer = request.headers.get('Referer', '').strip()
-    host = request.host.lower()
-
     if origin:
-        parsed_origin = urlparse(origin)
-        return parsed_origin.netloc.lower() == host
+        origin_host = _extract_hostname(origin)
+        return bool(origin_host and origin_host in allowed_hosts)
 
+    referer = request.headers.get('Referer', '').strip()
     if referer:
-        parsed_referer = urlparse(referer)
-        return parsed_referer.netloc.lower() == host
+        referer_host = _extract_hostname(referer)
+        return bool(referer_host and referer_host in allowed_hosts)
 
     # Jika Origin dan Referer kosong, hanya izinkan jika akses dari lokal / loopback
     client_ip = get_client_ip()
-    local_hosts = ('127.0.0.1', '::1', 'localhost')
+    local_hosts = {'127.0.0.1', '::1', 'localhost'}
     is_local = (
         client_ip in local_hosts or
-        host.split(':')[0] in local_hosts or
-        (request.remote_addr and request.remote_addr in local_hosts)
+        any(h in local_hosts for h in allowed_hosts) or
+        bool(request.remote_addr and request.remote_addr in local_hosts)
     )
     return is_local
 
-def verify_csrf() -> bool:
+def check_csrf_status():
     """
-    Validasi header X-CSRF-Token terhadap session['csrf_token']
-    menggunakan hmac.compare_digest untuk mencegah timing-attack.
+    Memeriksa status CSRF token dan mengembalikan tuple (is_valid, reason).
+    Reason dapat bernilai: 'csrf_session_missing', 'csrf_header_missing', 'csrf_mismatch', atau ''.
     """
+    token_session = (session.get('csrf_token') or '').strip()
+    if not token_session:
+        return False, 'csrf_session_missing'
+
     token_header = (
         request.headers.get('X-CSRF-Token') or
         request.headers.get('X-Csrf-Token') or
@@ -61,12 +91,21 @@ def verify_csrf() -> bool:
         ''
     ).strip()
 
-    token_session = (session.get('csrf_token') or '').strip()
+    if not token_header:
+        return False, 'csrf_header_missing'
 
-    if not token_header or not token_session:
-        return False
+    if not hmac.compare_digest(token_header, token_session):
+        return False, 'csrf_mismatch'
 
-    return hmac.compare_digest(token_header, token_session)
+    return True, ''
+
+def verify_csrf() -> bool:
+    """
+    Validasi header X-CSRF-Token terhadap session['csrf_token']
+    menggunakan hmac.compare_digest untuk mencegah timing-attack.
+    """
+    ok, _ = check_csrf_status()
+    return ok
 
 def check_rate_limit(client_ip: str, max_requests: int, window_seconds: int) -> bool:
     """
@@ -115,16 +154,37 @@ def require_api_security(max_requests=30, window_seconds=60):
 def _execute_security_check(f, max_requests, window_seconds, *args, **kwargs):
     # 1. Validasi Same-Origin
     if not is_same_origin():
-        return jsonify({"status": "error", "message": "Origin not allowed"}), 403
+        return jsonify({
+            "status": "error",
+            "error_stage": "security",
+            "reason": "origin_mismatch",
+            "message": "Origin not allowed"
+        }), 403
 
     # 2. Validasi CSRF Token
-    if not verify_csrf():
-        return jsonify({"status": "error", "message": "Invalid CSRF Token"}), 403
+    csrf_ok, csrf_reason = check_csrf_status()
+    if not csrf_ok:
+        csrf_messages = {
+            'csrf_session_missing': 'Sesi CSRF tidak ditemukan atau telah kedaluwarsa.',
+            'csrf_header_missing': 'Header X-CSRF-Token tidak ditemukan.',
+            'csrf_mismatch': 'Token CSRF tidak valid.'
+        }
+        return jsonify({
+            "status": "error",
+            "error_stage": "security",
+            "reason": csrf_reason,
+            "message": csrf_messages.get(csrf_reason, "Invalid CSRF Token")
+        }), 403
 
     # 3. Rate Limiting per IP
     ip = get_client_ip()
     if not check_rate_limit(ip, max_requests, window_seconds):
-        return jsonify({"status": "error", "message": "Terlalu banyak permintaan, coba sebentar lagi."}), 429
+        return jsonify({
+            "status": "error",
+            "error_stage": "security",
+            "reason": "rate_limited",
+            "message": "Terlalu banyak permintaan, coba sebentar lagi."
+        }), 429
 
     return f(*args, **kwargs)
 

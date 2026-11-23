@@ -3,8 +3,9 @@ import pymysql
 import pymysql.cursors
 from dotenv import load_dotenv
 
-# Muat variabel environment
-load_dotenv()
+# Muat variabel environment secara absolut agar kompatibel dengan Phusion Passenger cPanel
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 def get_db_connection():
     """
