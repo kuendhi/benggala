@@ -1,7 +1,8 @@
 import os
 import secrets
-from flask import Flask, render_template, session, send_from_directory, make_response
+from flask import Flask, render_template, session, send_from_directory, make_response, jsonify
 from dotenv import load_dotenv
+from core.database import db_fetch_one
 
 # Muat variabel environment dari file .env jika tersedia
 load_dotenv()
@@ -42,6 +43,23 @@ def service_worker():
 def assets_fallback(filename):
     """Fallback route untuk kompatibilitas jika aset diakses via /assets/..."""
     return send_from_directory('static/assets', filename)
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Endpoint Health Check: status engine Flask dan konektivitas database."""
+    try:
+        res = db_fetch_one("SELECT 1 AS health")
+        db_connected = bool(res and res.get('health') == 1)
+    except Exception as e:
+        app.logger.error(f"Health check DB error: {e}")
+        db_connected = False
+
+    status = "ok" if db_connected else "degraded"
+    return jsonify({
+        "status": status,
+        "engine": "Python Flask",
+        "db_connected": db_connected
+    }), (200 if db_connected else 500)
 
 if __name__ == '__main__':
     host = os.getenv('HOST', '0.0.0.0')
