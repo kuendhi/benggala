@@ -74,8 +74,12 @@
     if (targetId === 'galeri' && typeof window.loadHistory === 'function') {
       window.loadHistory();
     }
-    if (targetId === 'sistem' && typeof window.loadSettings === 'function') {
-      window.loadSettings();
+    if (targetId === 'sistem') {
+      const sModal = document.getElementById('settingsModal');
+      if (sModal) sModal.style.display = 'flex';
+      if (typeof window.loadSettings === 'function') {
+        window.loadSettings();
+      }
     }
   }
 

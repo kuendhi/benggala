@@ -2838,6 +2838,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (res.ok && (json.status === 'success' || json.status === 'ok')) {
         showToast('Pengaturan sistem & Telegram berhasil disimpan!', 'success');
         if (settingsModal) settingsModal.style.display = 'none';
+        if (window.BenggalaCockpit && typeof window.BenggalaCockpit.closeAllPanels === 'function') {
+          window.BenggalaCockpit.closeAllPanels();
+        }
         loadSettings();
       } else {
         showToast(json.message || 'Gagal menyimpan pengaturan.', 'error');
@@ -2855,18 +2858,27 @@ document.addEventListener('DOMContentLoaded', () => {
     btnOpenSettings.addEventListener('click', () => {
       loadSettings();
       if (settingsModal) settingsModal.style.display = 'flex';
+      if (window.BenggalaCockpit && typeof window.BenggalaCockpit.openPanel === 'function') {
+        window.BenggalaCockpit.openPanel('sistem');
+      }
     });
   }
 
   if (btnCloseSettings) {
     btnCloseSettings.addEventListener('click', () => {
       if (settingsModal) settingsModal.style.display = 'none';
+      if (window.BenggalaCockpit && typeof window.BenggalaCockpit.closeAllPanels === 'function') {
+        window.BenggalaCockpit.closeAllPanels();
+      }
     });
   }
 
   if (btnCancelSettings) {
     btnCancelSettings.addEventListener('click', () => {
       if (settingsModal) settingsModal.style.display = 'none';
+      if (window.BenggalaCockpit && typeof window.BenggalaCockpit.closeAllPanels === 'function') {
+        window.BenggalaCockpit.closeAllPanels();
+      }
     });
   }
 

@@ -890,7 +890,7 @@ html, body {
   left: 50%;
   transform: translateX(-50%);
   width: min(92vw, 520px);
-  max-height: 72dvh;
+  max-height: min(78dvh, calc(100dvh - 96px));
   z-index: 50;
   background: var(--bg-glass);
   backdrop-filter: blur(16px);
@@ -938,6 +938,10 @@ html, body {
   padding: 0.9rem 1.25rem;
   border-bottom: 1px solid var(--border-color);
   background: rgba(10, 22, 40, 0.95);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .panel-title-wrapper {
@@ -978,7 +982,14 @@ html, body {
 
 /* Panel Body Scrollable */
 .panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: var(--cyan) rgba(10, 22, 40, 0.5);
   padding: 1.1rem 1.25rem;
@@ -1012,7 +1023,11 @@ html, body {
   gap: 0.75rem;
   padding: 0.9rem 1.25rem;
   border-top: 1px solid var(--border-color);
-  background: rgba(10, 22, 40, 0.95);
+  background: rgba(10, 22, 40, 0.98);
+  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
 }
 
 /* ==========================================================================
@@ -1811,10 +1826,16 @@ input[type="range"]::-webkit-slider-thumb:hover {
 /* ==========================================================================
    13. Settings Section
    ========================================================================== */
+#settingsModal,
 .settings-modal-inner {
   display: flex;
   flex-direction: column;
   width: 100%;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .settings-section {
@@ -2037,7 +2058,20 @@ body.mode-emergency .mission-status-badge {
   .cockpit-panel {
     width: calc(100vw - 16px);
     bottom: 74px;
-    max-height: 68dvh;
+    max-height: min(78dvh, calc(100dvh - 84px));
+  }
+
+  .panel-footer {
+    padding: 0.75rem 1rem;
+    gap: 0.5rem;
+  }
+
+  .panel-footer .btn {
+    flex: 1;
+    font-size: 0.85rem;
+    padding: 0.6rem 0.75rem;
+    white-space: nowrap;
+    justify-content: center;
   }
 
   .cockpit-panel[data-panel="galeri"] {
