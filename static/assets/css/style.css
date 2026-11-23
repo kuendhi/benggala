@@ -2948,3 +2948,347 @@ body.mode-emergency .mission-status-badge {
   }
 }
 
+/* =========================================================================
+   TASK 16B: Panel Pengetahuan Objek & Pelatihan KNN (#knowledgePanel)
+   ========================================================================= */
+.knowledge-panel {
+  max-width: 540px;
+}
+
+.know-status-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin-bottom: 12px;
+}
+
+.know-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+  flex-shrink: 0;
+}
+
+.know-status-dot.ready {
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+
+.know-status-dot.error {
+  background: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+}
+
+.know-model-status {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.82rem;
+  color: #fbbf24;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.know-form-section {
+  background: rgba(2, 6, 23, 0.5);
+  border: 1px solid rgba(0, 229, 255, 0.15);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 14px;
+}
+
+.know-form-group {
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.know-form-row {
+  display: flex;
+  gap: 10px;
+}
+
+.know-col-half {
+  flex: 1;
+}
+
+.know-label {
+  font-size: 0.78rem;
+  color: var(--text-muted, #94a3b8);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.know-req {
+  color: #f43f5e;
+}
+
+.know-input,
+.know-select {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #f8fafc;
+  font-size: 0.88rem;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.know-input:focus,
+.know-select:focus {
+  border-color: #fbbf24;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
+  outline: none;
+}
+
+.know-target-info {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  background: rgba(0, 229, 255, 0.05);
+  border-left: 2px solid #00e5ff;
+  padding: 6px 10px;
+  margin-bottom: 12px;
+  border-radius: 0 4px 4px 0;
+}
+
+.know-action-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.know-btn {
+  flex: 1;
+  padding: 9px 12px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border: none;
+}
+
+.know-btn-single {
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.2), rgba(0, 229, 255, 0.08));
+  border: 1px solid rgba(0, 229, 255, 0.5);
+  color: #00e5ff;
+}
+
+.know-btn-single:hover {
+  background: #00e5ff;
+  color: #020617;
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.6);
+  transform: translateY(-1px);
+}
+
+.know-btn-burst {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.25), rgba(245, 158, 11, 0.12));
+  border: 1px solid rgba(251, 191, 36, 0.6);
+  color: #fbbf24;
+}
+
+.know-btn-burst:hover {
+  background: #fbbf24;
+  color: #020617;
+  box-shadow: 0 0 16px rgba(251, 191, 36, 0.7);
+  transform: translateY(-1px);
+}
+
+.know-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.know-list-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.know-list-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.15);
+}
+
+.know-list-title {
+  font-family: var(--font-display, inherit);
+  font-size: 0.76rem;
+  letter-spacing: 0.8px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.know-items-count {
+  font-size: 0.74rem;
+  font-family: var(--font-mono, monospace);
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.knowledge-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.knowledge-list-container::-webkit-scrollbar {
+  width: 5px;
+}
+
+.knowledge-list-container::-webkit-scrollbar-thumb {
+  background: rgba(0, 229, 255, 0.3);
+  border-radius: 4px;
+}
+
+.know-empty {
+  text-align: center;
+  padding: 20px 10px;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-style: italic;
+}
+
+.know-item-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  border-radius: 8px;
+  padding: 8px 10px;
+  transition: all 0.2s ease;
+}
+
+.know-item-card:hover {
+  border-color: rgba(251, 191, 36, 0.5);
+  background: rgba(15, 23, 42, 0.95);
+  transform: translateX(2px);
+}
+
+.know-item-thumb {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  background: #020617;
+  flex-shrink: 0;
+}
+
+.know-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.know-item-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.know-item-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #fbbf24;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.know-badge {
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  font-weight: 600;
+  background: rgba(0, 229, 255, 0.15);
+  color: #00e5ff;
+  border: 1px solid rgba(0, 229, 255, 0.3);
+}
+
+.know-badge-qc_umkm {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border-color: rgba(168, 85, 247, 0.3);
+}
+
+.know-badge-pertanian {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.know-badge-keamanan {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.know-badge-edukasi {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.know-item-notes {
+  font-size: 0.74rem;
+  color: #cbd5e1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.know-item-meta {
+  font-size: 0.68rem;
+  font-family: var(--font-mono, monospace);
+  color: #64748b;
+}
+
+.btn-know-delete {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.btn-know-delete:hover {
+  background: #ef4444;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+  transform: scale(1.08);
+}
+
+

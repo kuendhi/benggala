@@ -79,6 +79,13 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastStatsUpdate = 0;
   const STATS_THROTTLE_MS = 250; // Batasi update DOM statistik live max 4x/detik (anti layout thrashing)
 
+  // State Hook Pengetahuan Objek Kustom (Task 16B: MobileNet v2 + KNN Classifier)
+  let lastKnnCheckTime = 0;
+  let lastKnnMatch = null;
+  let lastKnnMatchTime = 0;
+  let isKnnClassifying = false;
+  let latestActivePrediction = null;
+
   // State Fokus Kustom (Task 15)
   const focusState = {
     active: false,
@@ -1215,6 +1222,38 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
+          // Simpan referensi objek aktif utama untuk modul training (Task 16B)
+          latestActivePrediction = (displayPredictions && displayPredictions.length > 0) ? displayPredictions[0] : null;
+
+          // Hook Pengetahuan Objek Kustom (Task 16B: MobileNet v2 + KNN Classifier Throttled ~350ms)
+          const targetPred = latestActivePrediction;
+          const nowPerf = performance.now();
+
+          if (targetPred && window.BenggalaKnowledge && typeof window.BenggalaKnowledge.isReady === 'function' && window.BenggalaKnowledge.isReady()) {
+            if (!isKnnClassifying && (nowPerf - lastKnnCheckTime > 350)) {
+              lastKnnCheckTime = nowPerf;
+              isKnnClassifying = true;
+              window.BenggalaKnowledge.classifyBox(video, targetPred.bbox)
+                .then(match => {
+                  if (match && match.label) {
+                    lastKnnMatch = match;
+                    lastKnnMatchTime = performance.now();
+                  }
+                })
+                .catch(err => console.warn('KNN classify error:', err))
+                .finally(() => {
+                  isKnnClassifying = false;
+                });
+            }
+          }
+
+          // Terapkan label kustom jika match masih dalam masa aktif (~800ms)
+          if (targetPred && lastKnnMatch && (nowPerf - lastKnnMatchTime < 800)) {
+            targetPred.customLabel = lastKnnMatch.label;
+            targetPred.isCustom = true;
+            targetPred.class = lastKnnMatch.label; // Teruskan ke Auto-Lock, TTS, dan Dossier
+          }
+
           renderPredictions(displayPredictions);
 
           // Update & Gambar Auto-Lock Target (Fase 1: Cyan -> Fase 2: Amber -> Fase 3: Hijau)
@@ -1329,8 +1368,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const itemFontSize = isSmallObj ? Math.max(11, 11 * scale) : fontSize;
       ctx.font = `bold ${itemFontSize}px sans-serif`;
 
-      const color = getColorForClass(prediction.class);
-      const translatedName = typeof window.translateLabel === 'function' ? window.translateLabel(prediction.class) : prediction.class;
+      const isCustomObj = Boolean(prediction.isCustom || prediction.customLabel);
+      const color = isCustomObj ? '#fbbf24' : getColorForClass(prediction.class);
+      const translatedName = prediction.customLabel
+        ? `★ ${prediction.customLabel}`
+        : (typeof window.translateLabel === 'function' ? window.translateLabel(prediction.class) : prediction.class);
       const scorePercent = Math.round(prediction.score * 100);
 
       // Tandai dengan ikon 🔍 jika dideteksi via pemindai detail macro
@@ -3021,9 +3063,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Expose global methods untuk modul Cockpit
+  // Expose global methods untuk modul Cockpit & Knowledge
   window.loadHistory = loadHistory;
   window.loadSettings = loadSettings;
+  window.getActiveTargetPrediction = () => latestActivePrediction;
 
   // Muat pengaturan awal dari database
   loadSettings();

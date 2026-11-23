@@ -43,6 +43,8 @@
   <!-- TensorFlow.js & COCO-SSD CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/knn-classifier@1.2.4/dist/knn-classifier.min.js"></script>
   
   <!-- YOULO OS Cockpit Styles (Anti-Cache) -->
   <link rel="stylesheet" href="{{ asset_url('assets/css/style.css') }}">
@@ -74,6 +76,7 @@
       <!-- Kanan: Tombol Cepat (Visi 2027, Mode Tenang, Mode Darurat, Settings, Install PWA) -->
       <div class="hud-header-right">
         <button type="button" id="btnRoadmap" class="hud-btn-accent" title="Visi Pengembangan 2027">📡 VISI 2027</button>
+        <button type="button" id="btnOpenKnowledgeHeader" class="hud-btn hud-btn-accent" title="Koreksi & Latih Objek (MobileNet + KNN)" style="border-color: rgba(251, 191, 36, 0.5); color: #fbbf24;">🎯 LATIH</button>
         <button type="button" id="btnQuietMode" class="hud-btn" title="Toggle Mode Tenang (Sembunyikan HUD)">
           🌙
         </button>
@@ -523,11 +526,80 @@
       </div>
     </section>
 
+    <!-- 7. Panel Pengetahuan & Koreksi Objek (Task 16B: MobileNet + KNN + MySQL) -->
+    <section class="cockpit-panel knowledge-panel" id="knowledgePanel" data-panel="knowledge" hidden>
+      <div class="panel-header">
+        <div class="panel-title">
+          <span class="panel-icon">🎯</span>
+          <span>KOREKSI & LATIH OBJEK (KNN TRAINER)</span>
+        </div>
+        <button type="button" class="btn-close-panel" id="btnCloseKnowledge" title="Tutup Panel">✕</button>
+      </div>
+      <div class="panel-body">
+        <!-- Status Model -->
+        <div class="know-status-card">
+          <span class="know-status-dot" id="knowStatusDot"></span>
+          <span id="knowModelStatus" class="know-model-status">Memuat MobileNet & KNN...</span>
+        </div>
+
+        <!-- Form Input -->
+        <div class="know-form-section">
+          <div class="know-form-group">
+            <label for="knowLabelInput" class="know-label">Nama Objek Benar <span class="know-req">*</span></label>
+            <input type="text" id="knowLabelInput" class="form-input know-input" placeholder="Misal: Kopi Robusta Lampung, Botol Madu..." maxlength="80" autocomplete="off">
+          </div>
+
+          <div class="know-form-row">
+            <div class="know-form-group know-col-half">
+              <label for="knowCategoryInput" class="know-label">Kategori / Domain</label>
+              <select id="knowCategoryInput" class="form-select know-select">
+                <option value="umum" selected>Umum</option>
+                <option value="qc_umkm">QC UMKM / Produk</option>
+                <option value="pertanian">Pertanian & Buah</option>
+                <option value="edukasi">Edukasi & Riset</option>
+                <option value="keamanan">Keamanan & Aset</option>
+              </select>
+            </div>
+            <div class="know-form-group know-col-half">
+              <label for="knowNotesInput" class="know-label">Ciri Khusus (Opsional)</label>
+              <input type="text" id="knowNotesInput" class="form-input know-input" placeholder="Ciri bentuk / warna..." maxlength="250" autocomplete="off">
+            </div>
+          </div>
+
+          <div class="know-target-info" id="knowTargetInfo">
+            🎯 <em>Arahkan kamera ke objek target (atau kunci objek). Kamera akan memotong area target untuk diekstrak fiturnya secara instan.</em>
+          </div>
+
+          <!-- Tombol Aksi -->
+          <div class="know-action-buttons">
+            <button type="button" id="btnCaptureOneSample" class="btn know-btn know-btn-single" title="Simpan 1 sudut sampel objek saat ini">
+              📸 Simpan 1 Sampel
+            </button>
+            <button type="button" id="btnCaptureBurstSample" class="btn know-btn know-btn-burst" title="Otomatis ambil 3 sampel sudut berbeda berjeda 600ms">
+              ⚡ Latih 3 Sudut (Otomatis)
+            </button>
+          </div>
+        </div>
+
+        <!-- Daftar Objek Tersimpan -->
+        <div class="know-list-section">
+          <div class="know-list-title-row">
+            <span class="know-list-title">OBJEK TERSIMPAN DI DATABASE</span>
+            <span id="knowItemsCount" class="know-items-count">0 Sampel</span>
+          </div>
+          <div id="knowledgeListContainer" class="knowledge-list-container">
+            <div class="know-empty">Belum ada objek kustom yang dilatih.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Kontrol Smooth Zoom, Kecerahan, Framing & Orientasi Layar Melayang (.hud-zoom-control) -->
     <div class="hud-zoom-control" id="hudZoomControl">
       <button type="button" id="btnBrightnessBoost" class="btn-zoom-step" title="Kecerahan Layar Instan (Klik untuk ganti 110% / 125% / 145%)">☀️</button>
       <button type="button" id="btnOrientation" class="btn-zoom-step" title="Orientasi Layar: Portrait (9:16) / Widescreen (16:9) / Auto">📱</button>
       <button type="button" id="btnDisplayMode" class="btn-zoom-step" title="Mode Framing: Proporsional (Fit) / Layar Penuh (Fill)">⛶</button>
+      <button type="button" id="btnOpenKnowledge" class="btn-zoom-step" title="🎯 Latih Objek (KNN Classifier)" style="color: #fbbf24; border-color: rgba(251, 191, 36, 0.4);">🎯</button>
       <button type="button" id="btnZoomOut" class="btn-zoom-step" title="Zoom Out (−0.1x)">−</button>
       <input type="range" id="zoomSlider" min="0.5" max="3" step="0.05" value="1" title="Geser Zoom (0.5x - 3.0x)">
       <button type="button" id="btnZoomIn" class="btn-zoom-step" title="Zoom In (+0.1x)">+</button>
@@ -701,6 +773,9 @@
 
   <!-- Modul Transmisi Taktis & Breaking News Visi 2027 (Anti-Cache) -->
   <script src="{{ asset_url('assets/js/roadmap.js') }}"></script>
+
+  <!-- Modul Pengetahuan & Pelatihan Objek Kustom MobileNet + KNN (Task 16B) -->
+  <script src="{{ asset_url('assets/js/knowledge.js') }}"></script>
 
   <!-- Detector Script (Anti-Cache) -->
   <script src="{{ asset_url('assets/js/detector.js') }}"></script>
