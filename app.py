@@ -3,6 +3,7 @@ import secrets
 from flask import Flask, render_template, session, send_from_directory, make_response, jsonify
 from dotenv import load_dotenv
 from core.database import db_fetch_one
+from routes.settings_history import settings_history_bp
 
 # Muat variabel environment dari file .env jika tersedia
 load_dotenv()
@@ -18,6 +19,9 @@ app.secret_key = os.getenv('SECRET_KEY', os.getenv('APP_KEY', secrets.token_hex(
 
 # Batas ukuran payload file upload (16 MB)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+
+# Daftarkan Blueprint API
+app.register_blueprint(settings_history_bp)
 
 @app.route('/')
 def index():
