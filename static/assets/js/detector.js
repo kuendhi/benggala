@@ -3347,6 +3347,61 @@ document.addEventListener('DOMContentLoaded', () => {
   // Muat model saat halaman pertama kali dibuka
   loadModel();
 
+  // =========================================================================
+  // Drag & Swipe Horisontal untuk Tombol Header (.hud-header-right) & Zoom Dock
+  // =========================================================================
+  function enableHorizontalDragScroll(el) {
+    if (!el) return;
+    let isDown = false;
+    let startX = 0;
+    let scrollLeft = 0;
+    let hasDragged = false;
+
+    el.addEventListener('mousedown', (e) => {
+      isDown = true;
+      hasDragged = false;
+      startX = e.pageX - el.offsetLeft;
+      scrollLeft = el.scrollLeft;
+      el.style.cursor = 'grabbing';
+      el.style.userSelect = 'none';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDown) return;
+      const x = e.pageX - el.offsetLeft;
+      const walk = (x - startX) * 1.5;
+      if (Math.abs(walk) > 4) {
+        hasDragged = true;
+      }
+      el.scrollLeft = scrollLeft - walk;
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (!isDown) return;
+      isDown = false;
+      el.style.cursor = '';
+      el.style.removeProperty('user-select');
+    });
+
+    // Cegah trigger klik tidak sengaja saat tombol sedang digeser
+    el.addEventListener('click', (e) => {
+      if (hasDragged) {
+        e.preventDefault();
+        e.stopPropagation();
+        hasDragged = false;
+      }
+    }, true);
+  }
+
+  const headerRightEl = document.querySelector('.hud-header-right');
+  if (headerRightEl) {
+    enableHorizontalDragScroll(headerRightEl);
+  }
+  const zoomControlEl = document.querySelector('.hud-zoom-control');
+  if (zoomControlEl) {
+    enableHorizontalDragScroll(zoomControlEl);
+  }
+
   // Inisialisasi deteksi multi-kamera perangkat
   refreshCameraDevices();
 });

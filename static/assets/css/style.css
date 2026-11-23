@@ -217,11 +217,27 @@ html, body {
   color: var(--text-dim);
 }
 
-/* Kanan: Quick Action Buttons */
+/* Kanan: Quick Action Buttons (Mendukung Swipe / Geser Horisontal) */
 .hud-header-right {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.hud-header-right::-webkit-scrollbar {
+  display: none;
+}
+
+.hud-header-right > * {
+  flex-shrink: 0 !important;
 }
 
 .hud-btn {
@@ -1084,21 +1100,22 @@ html, body {
 #zoomSlider {
   -webkit-appearance: none;
   width: 110px;
-  height: 4px;
+  height: 6px;
   background: rgba(15, 23, 42, 0.85);
   border-radius: 999px;
   border: 1px solid var(--border-color);
   outline: none;
+  touch-action: pan-x;
 }
 
 #zoomSlider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: var(--cyan);
   cursor: pointer;
-  box-shadow: 0 0 8px var(--cyan);
+  box-shadow: 0 0 10px var(--cyan);
   transition: transform 0.1s ease;
 }
 
@@ -1967,18 +1984,30 @@ body.mode-emergency .mission-status-badge {
     display: none !important;
   }
 
-  /* Tombol Aksi Kanan: Selalu terlihat utuh, prioritas utama */
+  /* Tombol Aksi Kanan di HP: Mendukung Swipe / Geser Horisontal Penuh */
   .hud-header-right {
     display: flex;
     align-items: center;
-    gap: 4px;
-    flex-shrink: 0 !important;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding: 2px 2px 2px 4px;
+    white-space: nowrap;
   }
 
-  /* Sembunyikan tombol header yang menumpuk / berlebih di HP agar tidak bertumpukan */
-  #btnOpenKnowledgeHeader,
-  #btnOpenSettings {
-    display: none !important;
+  .hud-header-right::-webkit-scrollbar {
+    display: none;
+  }
+
+  .hud-header-right > * {
+    flex-shrink: 0 !important;
   }
 
   /* Tombol 📡 VISI 2027: Selalu Menonjol, Utuh dan Mudah Diklik di Layar HP */
@@ -1995,6 +2024,20 @@ body.mode-emergency .mission-status-badge {
     background: linear-gradient(135deg, rgba(255, 171, 0, 0.35), rgba(255, 109, 0, 0.5));
     border: 1px solid #FFD54F;
     box-shadow: 0 0 10px rgba(255, 171, 0, 0.5);
+  }
+
+  /* Tombol 🎯 LATIH: Tampil Utuh & Proporsional di Bar Tombol HP */
+  .hud-btn-knowledge, #btnOpenKnowledgeHeader {
+    width: auto !important;
+    height: 30px;
+    padding: 0 8px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+    flex-shrink: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
   }
 
   .hud-btn {
@@ -3674,15 +3717,8 @@ body.mode-emergency .mission-status-badge {
   }
 }
 
-/* Aturan Mutlak Tata Letak Header & Panggung Kamera Mobile (Task 19) */
+/* Aturan Mutlak Panggung Kamera Mobile (Task 19) */
 @media (max-width: 767px) {
-  #btnOpenKnowledgeHeader,
-  .hud-btn-knowledge,
-  .desktop-only,
-  #btnOpenSettings {
-    display: none !important;
-  }
-
   .camera-stage,
   .camera-stage.is-portrait,
   .camera-stage.is-widescreen {
