@@ -43,3 +43,4 @@ jobs:
             **/__pycache__/**
             **/*.pyc
             **/uploads/snapshots/*.jpg
+            **/uploads/knowledge/*.jpg

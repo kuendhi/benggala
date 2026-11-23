@@ -107,3 +107,27 @@ def get_all_settings() -> dict:
                 val = row.get('setting_value')
                 settings[key] = val if val is not None else ''
     return settings
+
+def init_knowledge_table() -> bool:
+    """
+    Auto-migrasi tabel custom_objects untuk fitur koreksi objek & few-shot AI.
+    Aman dipanggil berulang kali (CREATE TABLE IF NOT EXISTS).
+    """
+    sql = """
+    CREATE TABLE IF NOT EXISTS custom_objects (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        label_name VARCHAR(100) NOT NULL,
+        category VARCHAR(60) DEFAULT 'umum',
+        notes VARCHAR(255) DEFAULT '',
+        image_path VARCHAR(255) NOT NULL,
+        embedding_json LONGTEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_label_name (label_name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """
+    try:
+        db_execute(sql)
+        return True
+    except Exception:
+        return False
+

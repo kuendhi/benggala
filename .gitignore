@@ -3,6 +3,8 @@ uploads/snapshots/*.jpg
 uploads/snapshots/*.png
 uploads/snapshots/*.log
 uploads/snapshots/*.json
+uploads/knowledge/*.jpg
+uploads/knowledge/*.png
 .DS_Store
 Thumbs.db
 

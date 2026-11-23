@@ -6,6 +6,7 @@ from core.database import db_fetch_one
 from routes.settings_history import settings_history_bp
 from routes.ai_snapshot import ai_snapshot_bp
 from routes.python_power import python_power_bp
+from routes.knowledge import knowledge_bp
 
 # Muat variabel environment dari file .env jika tersedia
 load_dotenv()
@@ -26,6 +27,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 app.register_blueprint(settings_history_bp)
 app.register_blueprint(ai_snapshot_bp)
 app.register_blueprint(python_power_bp)
+app.register_blueprint(knowledge_bp)
 
 @app.context_processor
 def inject_helpers():
@@ -73,6 +75,11 @@ def assets_fallback(filename):
 def uploaded_snapshots(filename):
     """Menyajikan berkas foto snapshot dari direktori uploads/snapshots."""
     return send_from_directory('uploads/snapshots', filename)
+
+@app.route('/uploads/knowledge/<path:filename>')
+def uploaded_knowledge(filename):
+    """Menyajikan berkas foto thumbnail objek dari direktori uploads/knowledge."""
+    return send_from_directory('uploads/knowledge', filename)
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
