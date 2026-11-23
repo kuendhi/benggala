@@ -4,7 +4,7 @@
    ========================================================================== */
 
 /* 1. Google Fonts Import */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Orbitron:wght@600;700&family=Rajdhani:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&family=Orbitron:wght@600;700&family=Rajdhani:wght@500;600;700&display=swap');
 
 /* 2. Color Palette & Global Variables */
 :root {
@@ -29,7 +29,7 @@
   --text-dim: #64748B;
   
   --font-display: 'Orbitron', monospace, sans-serif;
-  --font-main: 'Rajdhani', sans-serif;
+  --font-main: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
   
   --radius-sm: 4px;
@@ -4115,3 +4115,19 @@ body.android-embed-mode .cockpit-panel .panel-body {
   overflow-y: auto !important;
   -webkit-overflow-scrolling: touch !important;
 }
+
+/* === TASK 21: GLOBAL INTER FONT FAMILY === */
+html, body, button, input, select, textarea,
+.ar-callout-card, .ar-callout-card *,
+.hud-header, .hud-dock, .modal-content, .toast {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Angka telemetri (FPS, Akurasi %, Dimensi cm) stabil tidak bergetar */
+.telemetry-value, .ar-confidence, .zoom-badge {
+    font-variant-numeric: tabular-nums;
+}
+

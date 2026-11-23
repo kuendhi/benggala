@@ -1880,7 +1880,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const fontSize = Math.max(15, 15 * scale);
     const lineWidth = Math.max(2, 2.5 * scale);
 
-    ctx.font = `bold ${fontSize}px sans-serif`;
+    ctx.font = `bold ${fontSize}px "Inter", -apple-system, sans-serif`;
     ctx.textBaseline = 'top';
 
     const currentMap = new Map();
@@ -1915,7 +1915,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const isSmallObj = (smoothW < 80 || smoothH < 80);
       const itemFontSize = isSmallObj ? Math.max(11, 11 * scale) : fontSize;
-      ctx.font = `bold ${itemFontSize}px sans-serif`;
+      ctx.font = `bold ${itemFontSize}px "Inter", -apple-system, sans-serif`;
 
       const isCustomObj = Boolean(prediction.isCustom || prediction.customLabel);
 
