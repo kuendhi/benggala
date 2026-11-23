@@ -28,7 +28,7 @@
 
   // Konfigurasi
   const LERP_FACTOR = 0.22;
-  const HIDE_TIMEOUT_MS = 600;
+  const HIDE_TIMEOUT_MS = 3500;
   const SAFE_HEADER_TOP = 76;   // Jarak aman dari header atas
   const SAFE_DOCK_BOTTOM = 120; // Jarak aman dari dock bawah
 

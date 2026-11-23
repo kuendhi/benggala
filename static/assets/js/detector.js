@@ -1757,6 +1757,23 @@ document.addEventListener('DOMContentLoaded', () => {
           ? foregroundCandidates[0]
           : (isFilterBgActive ? null : (displayPredictions && displayPredictions.length > 0 ? displayPredictions[0] : null));
 
+        // Jika ada target yang sedang terkunci stabil, utamakan target terkunci tersebut
+        // dan pertahankan di displayPredictions agar lock & popup tidak hilang saat objek bergerak
+        if (window.BenggalaAutoLock && typeof window.BenggalaAutoLock.isTargetLocked === 'function' && window.BenggalaAutoLock.isTargetLocked()) {
+          const lockedTargetObj = window.BenggalaAutoLock.getLockedTarget();
+          if (lockedTargetObj) {
+            latestActivePrediction = lockedTargetObj;
+            const alreadyInDisplay = displayPredictions.some(p => {
+              const pLabel = p.customLabel || p.class;
+              const lLabel = lockedTargetObj.customLabel || lockedTargetObj.class;
+              return pLabel === lLabel;
+            });
+            if (!alreadyInDisplay) {
+              displayPredictions = [lockedTargetObj, ...displayPredictions];
+            }
+          }
+        }
+
         // Sinkronkan label KNN aktif jika ada
         if (latestActivePrediction && lastKnnMatch && (now - lastKnnMatchTime < 800)) {
           latestActivePrediction.customLabel = lastKnnMatch.label;

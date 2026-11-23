@@ -26,6 +26,7 @@
     lockedTarget: null,
     lockStartTime: 0,
     lastLockedTime: 0,
+    lastSeenTime: 0,
     lastLockedClass: '',
     lastMidPoint: { x: 0, y: 0 },
     hasTriggered: false,
@@ -146,10 +147,16 @@
     },
 
     /**
-     * Ambil data target yang sedang terkunci
+     * Ambil data target yang sedang terkunci (dengan koordinat aktual smoothBox)
      */
     getLockedTarget: function () {
-      return (this.state === 'LOCKED') ? this.lockedTarget : null;
+      if (this.state === 'LOCKED' && this.lockedTarget) {
+        return {
+          ...this.lockedTarget,
+          bbox: [this.smoothBox.x, this.smoothBox.y, this.smoothBox.w, this.smoothBox.h]
+        };
+      }
+      return null;
     },
 
     /**
@@ -161,13 +168,14 @@
       this.lockedTarget = null;
       this.lockStartTime = 0;
       this.lastLockedTime = 0;
+      this.lastSeenTime = 0;
       this.lastMidPoint = { x: 0, y: 0 };
       this.hasTriggered = false;
       this.smoothBox = { x: 0, y: 0, w: 0, h: 0, initialized: false };
       this.currentProgress = 0;
       this.currentLabel = '';
       if (window.BenggalaArCallout && typeof window.BenggalaArCallout.hide === 'function') {
-        window.BenggalaArCallout.hide();
+        window.BenggalaArCallout.hide(true);
       }
     },
 
@@ -190,9 +198,98 @@
      */
     update: function (predictions, now, onLockedCallback, canvasWidth = 640, canvasHeight = 480) {
       if (!this.enabled) {
-        this.state = 'IDLE';
-        this.trackingTarget = null;
-        this.lockedTarget = null;
+        this.reset();
+        return;
+      }
+
+      // =====================================================================
+      // FASE KHUSUS: TARGET SUDAH TERKUNCI (PERSISTENT TARGET LOCKING)
+      // Sesuai Instruksi User: Jangan hilangkan lock dan popup sampai objek
+      // benar-benar hilang dari jangkauan kamera (meskipun terlihat sedikit atau bergerak).
+      // =====================================================================
+      if (this.state === 'LOCKED' && this.lockedTarget) {
+        let matchedPred = null;
+
+        if (predictions && predictions.length > 0) {
+          // 1. Prioritas Utama: Cari objek dengan label/kelas yang sama yang paling dekat
+          // dengan posisi smoothBox terakhir
+          const lockedLabel = this.lockedTarget.customLabel || this.lockedTarget.class;
+          const sameClassCandidates = predictions.filter(p => {
+            const predLabel = p.customLabel || p.class;
+            return predLabel === lockedLabel;
+          });
+
+          if (sameClassCandidates.length > 0) {
+            sameClassCandidates.sort((a, b) => {
+              const [ax, ay, aw, ah] = a.bbox;
+              const [bx, by, bw, bh] = b.bbox;
+              const distA = Math.hypot((ax + aw / 2) - (this.smoothBox.x + this.smoothBox.w / 2), (ay + ah / 2) - (this.smoothBox.y + this.smoothBox.h / 2));
+              const distB = Math.hypot((bx + bw / 2) - (this.smoothBox.x + this.smoothBox.w / 2), (by + bh / 2) - (this.smoothBox.y + this.smoothBox.h / 2));
+              return distA - distB;
+            });
+            matchedPred = sameClassCandidates[0];
+          } else {
+            // 2. Jika detektor berubah kelas/label sesaat (misal karena sudut kamera miring),
+            // cari prediksi apa pun yang memiliki overlap / jarak terdekat dengan smoothBox terakhir
+            let bestIoU = 0;
+            for (const p of predictions) {
+              const [bx, by, bw, bh] = p.bbox;
+              const xA = Math.max(this.smoothBox.x, bx);
+              const yA = Math.max(this.smoothBox.y, by);
+              const xB = Math.min(this.smoothBox.x + this.smoothBox.w, bx + bw);
+              const yB = Math.min(this.smoothBox.y + this.smoothBox.h, by + bh);
+              const inter = Math.max(0, xB - xA) * Math.max(0, yB - yA);
+              const union = (this.smoothBox.w * this.smoothBox.h) + (bw * bh) - inter;
+              const iou = union > 0 ? (inter / union) : 0;
+              if (iou > 0.18 && iou > bestIoU) {
+                bestIoU = iou;
+                matchedPred = p;
+              }
+            }
+          }
+        }
+
+        if (matchedPred) {
+          // Target masih ditemukan! Perbarui koordinat dan perpanjang waktu terlihat
+          this.lockedTarget = matchedPred;
+          this.trackingTarget = matchedPred;
+          this.lastSeenTime = now;
+
+          const [px, py, pw, ph] = matchedPred.bbox;
+          this.smoothBox.x += (px - this.smoothBox.x) * this.lerpFactor;
+          this.smoothBox.y += (py - this.smoothBox.y) * this.lerpFactor;
+          this.smoothBox.w += (pw - this.smoothBox.w) * this.lerpFactor;
+          this.smoothBox.h += (ph - this.smoothBox.h) * this.lerpFactor;
+
+          this.currentColor = '#00E676'; // Neon Green
+          const rawLabel = matchedPred.customLabel || matchedPred.class;
+          const objLabel = typeof window.translateLabel === 'function' ? window.translateLabel(rawLabel) : rawLabel;
+          this.currentLabel = `🔒 TERKUNCI: ${objLabel.toUpperCase()}`;
+          return;
+        }
+
+        // Jika pada frame ini tidak ada matching prediction (misal objek terpotong di tepi kamera atau deteksi kedip):
+        // Cek apakah koordinat objek terakhir MASIH berada di jangkauan kamera (bahkan jika hanya tersisa sedikit pixel di tepi)
+        const isStillInCameraReach = (
+          (this.smoothBox.x + this.smoothBox.w > 0) &&
+          (this.smoothBox.x < canvasWidth) &&
+          (this.smoothBox.y + this.smoothBox.h > 0) &&
+          (this.smoothBox.y < canvasHeight)
+        );
+
+        const timeSinceSeen = now - (this.lastSeenTime || now);
+
+        if (isStillInCameraReach && timeSinceSeen < 3500) {
+          // Objek masih dalam jangkauan kamera dan belum 3.5 detik hilang: JANGAN HILANGKAN LOCK & POPUP!
+          this.currentColor = '#00E676';
+          const rawLabel = this.lockedTarget.customLabel || this.lockedTarget.class;
+          const objLabel = typeof window.translateLabel === 'function' ? window.translateLabel(rawLabel) : rawLabel;
+          this.currentLabel = `🔒 TERKUNCI: ${objLabel.toUpperCase()}`;
+          return;
+        }
+
+        // Objek BENAR-BENAR TELAH HILANG dari jangkauan kamera (keluar frame sepenuhnya atau > 3.5 detik tidak terdeteksi)
+        this.reset();
         return;
       }
 
@@ -384,9 +481,11 @@
         // FASE 3: TARGET TERKUNCI STABIL (>= 6.0 DETIK)
         this.state = 'LOCKED';
         this.lockedTarget = primary;
+        this.lastSeenTime = now;
         this.currentColor = '#00E676'; // Neon Green
         this.currentProgress = 100;
-        this.currentLabel = `⚡ TARGET LOCKED: ${objLabel.toUpperCase()} (6.0s)`;
+        const objLabel = typeof window.translateLabel === 'function' ? window.translateLabel(primary.customLabel || primary.class) : (primary.customLabel || primary.class);
+        this.currentLabel = `🔒 TERKUNCI: ${objLabel.toUpperCase()}`;
 
         // Panggil Callback Eksekusi 1 KALI saja
         if (!this.hasTriggered) {
@@ -403,7 +502,7 @@
     },
 
     /**
-     * Gambar HUD Reticle Rudal Tempur (Air-to-Air Missile Reticle) di Canvas
+     * Gambar HUD Reticle Taktis Presisi (Tanpa Lingkaran Besar / Anti Penuh Layar)
      * @param {CanvasRenderingContext2D} ctx Context 2D canvas overlay
      */
     drawLockOverlay: function (ctx) {
@@ -416,29 +515,28 @@
 
       const cx = x + w / 2;
       const cy = y + h / 2;
-      const rad = Math.max(w, h) * 0.58;
 
       ctx.save();
 
       // Efek Glow Sesuai Warna Fase
       ctx.shadowColor = this.currentColor;
-      ctx.shadowBlur = (this.state === 'LOCKED') ? 16 : 8;
+      ctx.shadowBlur = (this.state === 'LOCKED') ? 14 : 6;
       ctx.strokeStyle = this.currentColor;
-      ctx.lineWidth = (this.state === 'LOCKED') ? 2.5 : 1.8;
+      ctx.fillStyle = this.currentColor;
 
-      // 1. Gambar Reticle Corner Brackets (Siku Sudut Rudal) - Hanya 1 kotak dari detektor tanpa kotak ganda
-      const bracketLen = Math.min(22, w / 4, h / 4);
-      // Sudut menyempit halus pada fase LOCKING (offset menyempit dari 10px ke 0px)
+      // 1. Siku Sudut Presisi (Precision Corner Brackets - Rapi Memeluk Sudut Objek)
+      const bracketLen = Math.min(22, Math.max(10, Math.min(w, h) * 0.28));
+      // Sudut menyempit halus pada fase LOCKING (offset menyempit dari 8px ke 0px)
       const bracketOffset = (this.state === 'LOCKING') 
-        ? 10 * (1 - this.currentProgress / 100) 
-        : (this.state === 'LOCKED' ? 0 : 8);
+        ? Math.round(8 * (1 - this.currentProgress / 100)) 
+        : 0;
 
-      const bx1 = x - bracketOffset;
-      const by1 = y - bracketOffset;
-      const bx2 = x + w + bracketOffset;
-      const by2 = y + h + bracketOffset;
+      const bx1 = Math.round(x - bracketOffset);
+      const by1 = Math.round(y - bracketOffset);
+      const bx2 = Math.round(x + w + bracketOffset);
+      const by2 = Math.round(y + h + bracketOffset);
 
-      ctx.lineWidth = (this.state === 'LOCKED') ? 3.5 : 2.5;
+      ctx.lineWidth = (this.state === 'LOCKED') ? 3.0 : 2.0;
 
       // Sudut Kiri-Atas
       ctx.beginPath();
@@ -468,35 +566,28 @@
       ctx.lineTo(bx2, by2 - bracketLen);
       ctx.stroke();
 
-      // 3. Lingkaran Bidik Rudal Udara (Air-to-Air Missile Lock Ring)
-      if (this.state === 'LOCKING' || this.state === 'LOCKED') {
-        ctx.save();
-        // Lingkaran luar putus-putus
-        ctx.setLineDash([4, 6]);
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.arc(cx, cy, rad, 0, Math.PI * 2);
-        ctx.stroke();
+      // 2. Titik Node Sudut Taktis (Illuminated Vertex Nodes)
+      const nodeR = (this.state === 'LOCKED') ? 2.5 : 2;
+      ctx.beginPath(); ctx.arc(bx1, by1, nodeR, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(bx2, by1, nodeR, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(bx1, by2, nodeR, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(bx2, by2, nodeR, 0, Math.PI * 2); ctx.fill();
 
-        // Arc Progress Penguncian (0 ke 360 derajat)
-        ctx.setLineDash([]);
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        const startAngle = -Math.PI / 2;
-        const endAngle = startAngle + (Math.PI * 2 * (this.currentProgress / 100));
-        ctx.arc(cx, cy, rad, startAngle, endAngle);
-        ctx.stroke();
+      // 3. Garis Penjajar Sisi Taktis (Edge Alignment Ticks - Memeluk Kotak Tanpa Lingkaran)
+      const tickLen = Math.min(6, Math.min(w, h) * 0.15);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx, by1); ctx.lineTo(cx, by1 + tickLen);
+      ctx.moveTo(cx, by2); ctx.lineTo(cx, by2 - tickLen);
+      ctx.moveTo(bx1, cy); ctx.lineTo(bx1 + tickLen, cy);
+      ctx.moveTo(bx2, cy); ctx.lineTo(bx2 - tickLen, cy);
+      ctx.stroke();
 
-        // 4 Titik Crosshair Seeker (N, E, S, W)
-        ctx.fillStyle = this.currentColor;
-        const pipLen = 6;
-        ctx.fillRect(cx - 1, cy - rad - pipLen, 2, pipLen);
-        ctx.fillRect(cx + rad, cy - 1, pipLen, 2);
-        ctx.fillRect(cx - 1, cy + rad, 2, pipLen);
-        ctx.fillRect(cx - rad - pipLen, cy - 1, pipLen, 2);
-
-        ctx.restore();
-      }
+      // Titik Pusat Bidik Halus (+)
+      ctx.beginPath();
+      ctx.moveTo(cx - 3, cy); ctx.lineTo(cx + 3, cy);
+      ctx.moveTo(cx, cy - 3); ctx.lineTo(cx, cy + 3);
+      ctx.stroke();
 
       // 4. Label Header Status Bidikan
       ctx.font = '700 11px "JetBrains Mono", monospace, sans-serif';
@@ -517,17 +608,15 @@
       ctx.fillStyle = this.currentColor;
       ctx.fillText(this.currentLabel, badgeX + 8, badgeY + 14);
 
-      // 5. Progress Bar Kuncian (Fase LOCKING & LOCKED)
-      if (this.state === 'LOCKING' || this.state === 'LOCKED') {
-        const barH = 4;
-        const barY = y + h + 6;
+      // 5. Progress Bar Kuncian (HANYA saat Fase LOCKING)
+      if (this.state === 'LOCKING') {
+        const barH = 3;
+        const barY = y + h + 5;
         const fillW = Math.max(0, (w * (this.currentProgress / 100)));
 
-        // Background Bar
         ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
         ctx.fillRect(x, barY, w, barH);
 
-        // Fill Progress Bar
         ctx.fillStyle = this.currentColor;
         ctx.fillRect(x, barY, fillW, barH);
       }
