@@ -1066,7 +1066,7 @@ document.addEventListener('DOMContentLoaded', () => {
    * Menghilangkan objek bayangan / kotak palsu yang tumpang-tindih atau bersarang di dalam objek lain
    * (seperti mangkuk atau meja makan di dalam botol).
    */
-  function suppressNestedAndOverlappingBoxes(predictions, iouThreshold = 0.35, containmentThreshold = 0.50) {
+  function suppressNestedAndOverlappingBoxes(predictions, iouThreshold = 0.55, containmentThreshold = 0.75) {
     if (!predictions || predictions.length <= 1) return predictions || [];
 
     // Filter awal: Supresi false positive "dining table" / meja makan yang tumpang-tindih dengan objek foreground
@@ -1126,8 +1126,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const vw = video.videoWidth || 640;
     const vh = video.videoHeight || 480;
 
-    // Sensitivitas seimbang: filter noise di bawah 0.30
-    const detectMinScore = Math.max(0.30, minConfidence * 0.90);
+    // Sensitivitas detail: deteksi objek kecil & akurasi tinggi
+    const detectMinScore = Math.max(0.18, minConfidence * 0.65);
 
     // Hitung area crop untuk digital zoom jika level > 1.05
     let cropX = 0;
@@ -1142,18 +1142,18 @@ document.addEventListener('DOMContentLoaded', () => {
       cropY = (vh - cropH) / 2;
     }
 
-    // Downscale proporsional ke resolusi ideal tensor COCO-SSD (320px pada mobile, 416px pada desktop)
+    // Resolusi tinggi ideal tensor COCO-SSD (480px pada mobile, 640px pada desktop) untuk menangkap detail objek halus
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (window.innerWidth <= 768) || (navigator.maxTouchPoints > 0);
-    const MAX_SCAN_DIM = isMobileDevice ? 320 : 416;
+    const MAX_SCAN_DIM = isMobileDevice ? 480 : 640;
     const aspect = cropW / cropH;
     let scanW, scanH;
 
     if (aspect >= 1) {
       scanW = MAX_SCAN_DIM;
-      scanH = Math.max(160, Math.round(MAX_SCAN_DIM / aspect));
+      scanH = Math.max(240, Math.round(MAX_SCAN_DIM / aspect));
     } else {
       scanH = MAX_SCAN_DIM;
-      scanW = Math.max(160, Math.round(MAX_SCAN_DIM * aspect));
+      scanW = Math.max(240, Math.round(MAX_SCAN_DIM * aspect));
     }
 
     if (aiScanCanvas.width !== scanW || aiScanCanvas.height !== scanH) {
@@ -1164,8 +1164,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Hardware 2D Blit: salin viewport kamera ke aiScanCanvas dalam < 0.5 ms
     aiScanCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, scanW, scanH);
 
-    // Jalankan inferensi COCO-SSD pada tensor kecil (beban GPU texture upload berkurang ~96%)
-    const rawDetections = await model.detect(aiScanCanvas, 20, detectMinScore);
+    // Jalankan inferensi COCO-SSD pada resolusi detail tinggi (maks 30 objek)
+    const rawDetections = await model.detect(aiScanCanvas, 30, detectMinScore);
 
     // Skala kembali koordinat bbox ke sistem koordinat video resolusi penuh
     const scaleX = cropW / scanW;
@@ -1182,11 +1182,11 @@ document.addEventListener('DOMContentLoaded', () => {
       ]
     }));
 
-    // 1. Filter awal berdasarkan ambang batas keyakinan pengguna
-    const confidentList = scaledDetections.filter(pred => pred.score >= minConfidence);
+    // 1. Filter awal berdasarkan ambang batas keyakinan pengguna (dengan toleransi detail)
+    const confidentList = scaledDetections.filter(pred => pred.score >= Math.min(minConfidence, 0.35));
 
     // 2. Terapkan Containment Suppression & Class-Agnostic NMS (Anti-Ghosting bayangan dalam objek)
-    const filtered = suppressNestedAndOverlappingBoxes(confidentList);
+    const filtered = suppressNestedAndOverlappingBoxes(confidentList, 0.55, 0.75);
 
     // Hook Pengetahuan Objek Kustom (Task 16B: MobileNet v2 + KNN Classifier Throttled ~350ms)
     const targetPred = (filtered && filtered.length > 0) ? filtered[0] : null;
@@ -1417,19 +1417,35 @@ document.addEventListener('DOMContentLoaded', () => {
         window.BenggalaRoadmap.updateLiveEspSim(predictionsSource, video.videoWidth || 640);
       }
 
-      // HUD AR Callout Futuristik & Garis Konektor (Task 18B)
+      // HUD AR Callout Futuristik & Garis Konektor (Task 18B & 18D: Hanya Muncul Setelah Terkunci 6 Detik)
       if (window.BenggalaArCallout) {
-        let currentDimText = '';
-        if (pixelsPerCm && pixelsPerCm > 0 && latestActivePrediction && latestActivePrediction.bbox) {
-          const wCm = (latestActivePrediction.bbox[2] / pixelsPerCm).toFixed(1);
-          const hCm = (latestActivePrediction.bbox[3] / pixelsPerCm).toFixed(1);
-          currentDimText = `${wCm}×${hCm} cm`;
+        const isAutoLocked = window.BenggalaAutoLock && typeof window.BenggalaAutoLock.isTargetLocked === 'function' && window.BenggalaAutoLock.isTargetLocked();
+        const isManualFocus = focusState && focusState.active;
+        const isTargetLocked = isAutoLocked || isManualFocus;
+
+        if (isTargetLocked) {
+          const targetToShow = isAutoLocked 
+            ? (window.BenggalaAutoLock.getLockedTarget() || latestActivePrediction) 
+            : latestActivePrediction;
+
+          if (targetToShow) {
+            let currentDimText = '';
+            if (pixelsPerCm && pixelsPerCm > 0 && targetToShow.bbox) {
+              const wCm = (targetToShow.bbox[2] / pixelsPerCm).toFixed(1);
+              const hCm = (targetToShow.bbox[3] / pixelsPerCm).toFixed(1);
+              currentDimText = `${wCm}×${hCm} cm`;
+            }
+            window.BenggalaArCallout.update(targetToShow, canvas, {
+              dimensionsText: currentDimText || '',
+              isLocked: true
+            });
+          } else {
+            window.BenggalaArCallout.hide();
+          }
+        } else {
+          // Jangan tampilkan popup saat masih mencari objek atau belum terkunci 6 detik (Ringan & Bebas Beban)
+          window.BenggalaArCallout.hide();
         }
-        const isTargetLocked = (window.BenggalaAutoLock && typeof window.BenggalaAutoLock.isTargetLocked === 'function' && window.BenggalaAutoLock.isTargetLocked()) || (focusState && focusState.active) || false;
-        window.BenggalaArCallout.update(latestActivePrediction, canvas, {
-          dimensionsText: currentDimText || '',
-          isLocked: isTargetLocked || false
-        });
       }
 
       animationFrameId = requestAnimationFrame(renderLoop);

@@ -445,6 +445,15 @@
 
     if (!initElements()) return;
 
+    // WAJIB (Task 18D): Popup detail HANYA boleh muncul jika target sudah TERKUNCI STABIL 6 DETIK (atau fokus manual)
+    const isLocked = options && options.isLocked;
+    if (!isLocked) {
+      if (isCardVisible) {
+        hide();
+      }
+      return;
+    }
+
     if (!primaryPrediction || !primaryPrediction.bbox || !canvasEl) {
       // Mekanisme anti-flicker: tunda hide selama HIDE_TIMEOUT_MS
       if (isCardVisible && (now - lastSeenTime > HIDE_TIMEOUT_MS)) {
