@@ -38,6 +38,7 @@ jobs:
             **/.git*
             **/.git*/**
             **/.env
+            **/.htaccess
             **/venv/**
             **/.venv/**
             **/__pycache__/**
@@ -53,11 +54,13 @@ jobs:
           FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
         run: |
           python -c "
-          import ftplib, os
+          import ftplib, os, io
+
           server = os.environ.get('FTP_SERVER')
           user = os.environ.get('FTP_USERNAME')
           passwd = os.environ.get('FTP_PASSWORD')
           remotedir = os.environ.get('FTP_SERVER_DIR', '').strip('/')
+
           if server and user and passwd:
               try:
                   ftp = ftplib.FTP(server, timeout=30)
@@ -66,17 +69,62 @@ jobs:
                       for d in remotedir.split('/'):
                           if d:
                               ftp.cwd(d)
+
                   legacy_files = ['index.php', 'save_snapshot.php', 'analyze_llm.php', 'settings.php', 'history.php', 'export_csv.php', 'db.php', 'security.php', 'telegram.php']
                   for f in legacy_files:
                       try:
                           ftp.delete(f)
                           print(f'Successfully deleted legacy {f} from FTP')
                       except Exception as e:
-                          print(f'File {f} not present or skipped: {e}')
+                          print(f'File {f} not present: {e}')
+
+                  # Cek isi .htaccess di remote FTP
+                  htaccess_lines = []
+                  try:
+                      ftp.retrlines('RETR .htaccess', htaccess_lines.append)
+                  except Exception as e:
+                      print('Could not read remote .htaccess:', e)
+
+                  remote_content = '\n'.join(htaccess_lines)
+                  print(f'Remote .htaccess has {len(remote_content)} bytes')
+
+                  if 'PassengerAppRoot' not in remote_content or 'PassengerPython' not in remote_content:
+                      print('Configuring CloudLinux Passenger in .htaccess...')
+                      # Deteksi path virtualenv cPanel
+                      py_candidates = [
+                          '/home/sikemban1/virtualenv/public_html/benggala/3.10/bin/python',
+                          '/home/sikemban1/virtualenv/benggala/3.10/bin/python',
+                          '/home/sikemban1/virtualenv/public_html/benggala/3.9/bin/python',
+                          '/home/sikemban1/virtualenv/benggala/3.9/bin/python'
+                      ]
+                      selected_py = py_candidates[0]
+                      
+                      # Coba cari folder virtualenv aktual via FTP parent
+                      try:
+                          cur_dir = ftp.pwd()
+                          ftp.cwd('/')
+                          root_items = []
+                          ftp.retrlines('NLST', root_items.append)
+                          print('Root items:', root_items)
+                          ftp.cwd(cur_dir)
+                      except Exception as list_err:
+                          print('Could not list root:', list_err)
+
+                      passenger_header = (
+                          '# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION BEGIN\n'
+                          'PassengerAppRoot \"/home/sikemban1/public_html/benggala\"\n'
+                          'PassengerBaseURI \"/benggala\"\n'
+                          f'PassengerPython \"{selected_py}\"\n'
+                          '# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END\n\n'
+                      )
+                      new_content = passenger_header + remote_content
+                      ftp.storbinary('STOR .htaccess', io.BytesIO(new_content.encode('utf-8')))
+                      print('Successfully injected CloudLinux Passenger block into .htaccess!')
+
                   print('--- REMOTE FTP DIRECTORY LISTING ---')
                   ftp.retrlines('LIST')
                   ftp.quit()
               except Exception as e:
-                  print('FTP cleanup warning:', e)
+                  print('FTP script error:', e)
           "
 
