@@ -728,6 +728,14 @@
     update(reticleScanPinnedTarget, cEl, { isLocked: true });
   }
 
+  // Hook Sinkronisasi Viewport & Rotasi (Task 20C): Re-anchor kartu AR & SVG
+  window.addEventListener('benggala:viewport-changed', () => {
+    if (isCardVisible && activePredictionRef) {
+      const cEl = document.getElementById('overlay');
+      if (cEl) update(activePredictionRef, cEl, currentOptions);
+    }
+  });
+
   // =========================================================================
   // Expose API Global
   // =========================================================================

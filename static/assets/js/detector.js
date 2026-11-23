@@ -1185,10 +1185,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.BenggalaAutoLock && typeof window.BenggalaAutoLock.resetTrackingCoords === 'function') {
       window.BenggalaAutoLock.resetTrackingCoords();
     }
+    if (focusState && focusState.active && focusReticle && focusReticle.classList.contains('is-custom-focus')) {
+      const fr = focusReticle.getBoundingClientRect();
+      if (fr.left < 0 || fr.right > window.innerWidth || fr.top < 0 || fr.bottom > window.innerHeight) {
+        resetCameraFocus();
+      }
+    }
   };
 
   video.addEventListener('loadedmetadata', handleViewportChange);
   window.addEventListener('resize', handleViewportChange);
+  window.addEventListener('benggala:viewport-changed', handleViewportChange);
   window.addEventListener('orientationchange', () => {
     setTimeout(handleViewportChange, 80);
     setTimeout(handleViewportChange, 250);
