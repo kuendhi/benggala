@@ -994,13 +994,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
-  // 3. Loop Deteksi Real-Time Multi-Skala (requestAnimationFrame + Macro Scanner)
-  // Memadukan Pemindaian Global (Wide) dan Pemindaian Detail Macro (High-Res Crop)
-  // untuk Menangkap Objek Kecil Secara Presisi Tanpa Membebani Kinerja
+  // 3. Loop Deteksi Real-Time Tri-Phase Multi-Skala & Temporal Tracking
+  // Memadukan 3 Zona Pemindaian Bergantian:
+  // - Fase 0: Pemindaian Global (Wide Scene)
+  // - Fase 1: Pemindaian Ultra-Micro Focus (Center / Focus Reticle, ~2.5x Zoom)
+  // - Fase 2: Pemindaian Permukaan Meja / Objek Bawah (Tabletop & Desk Horizon, ~1.8x Zoom)
+  // Dilengkapi Temporal Box Tracking untuk Meredam Kedip-kedip & Mengunci Objek Kecil
   // =========================================================================
   const macroCanvas = document.createElement('canvas');
-  macroCanvas.width = 360;
-  macroCanvas.height = 360;
+  macroCanvas.width = 440;
+  macroCanvas.height = 440;
   const macroCtx = macroCanvas.getContext('2d', { willReadFrequently: true });
 
   const zoomFeedCanvas = document.createElement('canvas');
@@ -1010,7 +1013,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let frameScanIndex = 0;
   let lastGlobalDetections = [];
-  let lastMacroDetections = [];
+  let lastMicroFocusDetections = [];
+  let lastDeskDetections = [];
+
+  // Temporal Box Tracking Map: Menyimpan riwayat objek agar tidak berkedip-kedip saat ada sedikit noise
+  const temporalBoxTracker = new Map();
+  let trackerIdSeq = 0;
 
   function calculateIoU(boxA, boxB) {
     const xA = Math.max(boxA[0], boxB[0]);
@@ -1026,28 +1034,100 @@ document.addEventListener('DOMContentLoaded', () => {
     return interArea / (areaA + areaB - interArea);
   }
 
-  function mergeMultiScaleDetections(globals, macros) {
+  function mergeMultiScaleDetections(globals, micros, desks) {
     const merged = [...globals];
-    for (const macro of macros) {
-      let matchedIdx = -1;
-      let maxIou = 0;
-      for (let i = 0; i < merged.length; i++) {
-        const iou = calculateIoU(merged[i].bbox, macro.bbox);
-        if (iou > maxIou) {
-          maxIou = iou;
-          matchedIdx = i;
-        }
-      }
 
-      if (matchedIdx >= 0 && maxIou > 0.30) {
-        if (macro.score > merged[matchedIdx].score) {
-          merged[matchedIdx] = macro;
+    function mergeList(sourceList) {
+      if (!sourceList || !sourceList.length) return;
+      for (const item of sourceList) {
+        let matchedIdx = -1;
+        let maxIou = 0;
+        for (let i = 0; i < merged.length; i++) {
+          const iou = calculateIoU(merged[i].bbox, item.bbox);
+          if (iou > maxIou) {
+            maxIou = iou;
+            matchedIdx = i;
+          }
         }
-      } else {
-        merged.push(macro);
+
+        if (matchedIdx >= 0 && maxIou > 0.28) {
+          if (item.score > merged[matchedIdx].score) {
+            merged[matchedIdx] = item;
+          }
+        } else {
+          merged.push(item);
+        }
       }
     }
+
+    mergeList(micros);
+    mergeList(desks);
     return merged;
+  }
+
+  function updateTemporalTracking(rawCandidates) {
+    temporalBoxTracker.forEach(entry => {
+      entry.updatedThisFrame = false;
+    });
+
+    for (const cand of rawCandidates) {
+      let bestTrackKey = null;
+      let bestIou = 0;
+
+      temporalBoxTracker.forEach((entry, key) => {
+        if (entry.class === cand.class) {
+          const iou = calculateIoU(entry.bbox, cand.bbox);
+          if (iou > bestIou) {
+            bestIou = iou;
+            bestTrackKey = key;
+          }
+        }
+      });
+
+      if (bestTrackKey && bestIou > 0.25) {
+        const trk = temporalBoxTracker.get(bestTrackKey);
+        const LERP_TRACK = 0.70;
+        trk.bbox[0] += (cand.bbox[0] - trk.bbox[0]) * LERP_TRACK;
+        trk.bbox[1] += (cand.bbox[1] - trk.bbox[1]) * LERP_TRACK;
+        trk.bbox[2] += (cand.bbox[2] - trk.bbox[2]) * LERP_TRACK;
+        trk.bbox[3] += (cand.bbox[3] - trk.bbox[3]) * LERP_TRACK;
+        trk.score = Math.max(trk.score * 0.8, cand.score);
+        trk.isMacro = trk.isMacro || cand.isMacro;
+        trk.missedFrames = 0;
+        trk.updatedThisFrame = true;
+      } else {
+        trackerIdSeq++;
+        temporalBoxTracker.set(trackerIdSeq, {
+          class: cand.class,
+          bbox: [...cand.bbox],
+          score: cand.score,
+          isMacro: !!cand.isMacro,
+          missedFrames: 0,
+          updatedThisFrame: true
+        });
+      }
+    }
+
+    const resultList = [];
+    temporalBoxTracker.forEach((entry, key) => {
+      if (!entry.updatedThisFrame) {
+        entry.missedFrames++;
+        entry.score *= 0.94; // Decay lembut
+      }
+
+      if (entry.missedFrames > 3 || entry.score < 0.12) {
+        temporalBoxTracker.delete(key);
+      } else {
+        resultList.push({
+          class: entry.class,
+          score: entry.score,
+          bbox: entry.bbox,
+          isMacro: entry.isMacro
+        });
+      }
+    });
+
+    return resultList;
   }
 
   function startDetectionLoop() {
@@ -1065,10 +1145,13 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           const vw = video.videoWidth || 640;
           const vh = video.videoHeight || 480;
-          const detectMinScore = Math.max(0.18, Math.min(minConfidence * 0.85, 0.30));
+          const detectMinScore = Math.max(0.14, Math.min(minConfidence * 0.80, 0.28));
 
-          if (frameScanIndex % 2 === 0) {
-            // Fase 1: Pemindaian Global (Wide Scene)
+          const phase = frameScanIndex % 3;
+          frameScanIndex = (frameScanIndex + 1) % 3;
+
+          if (phase === 0) {
+            // Fase 0: Pemindaian Global (Wide Scene)
             let scanInput = video;
             let zoomScale = 1.0;
             let zoomOffsetX = 0;
@@ -1084,7 +1167,7 @@ document.addEventListener('DOMContentLoaded', () => {
               zoomScale = cropW / zoomFeedCanvas.width;
             }
 
-            const rawGlobal = await model.detect(scanInput, 40, detectMinScore);
+            const rawGlobal = await model.detect(scanInput, 45, detectMinScore);
 
             if (currentZoom > 1.05) {
               lastGlobalDetections = rawGlobal.map(p => ({
@@ -1101,14 +1184,14 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
               lastGlobalDetections = rawGlobal.map(p => ({ ...p, isMacro: false }));
             }
-          } else {
-            // Fase 2: Pemindaian Detail Macro (High-Resolution Center / Focus Crop)
-            let cropW = Math.round(vw * 0.52);
-            let cropH = Math.round(vh * 0.52);
+
+          } else if (phase === 1) {
+            // Fase 1: Pemindaian Ultra-Micro Focus (Center / Focus Reticle Crop, ~2.5x Zoom)
+            let cropW = Math.round(vw * 0.42);
+            let cropH = Math.round(vh * 0.42);
             let cropX = Math.round((vw - cropW) / 2);
             let cropY = Math.round((vh - cropH) / 2);
 
-            // Jika pengguna memfokuskan titik tertentu (Double-Tap Focus), pusatkan jendela macro ke titik fokus
             if (focusState.active && focusState.canvasX !== null && focusState.canvasY !== null) {
               cropX = Math.max(0, Math.min(vw - cropW, Math.round(focusState.canvasX - cropW / 2)));
               cropY = Math.max(0, Math.min(vh - cropH, Math.round(focusState.canvasY - cropH / 2)));
@@ -1116,11 +1199,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
             macroCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, macroCanvas.width, macroCanvas.height);
 
-            const rawMacro = await model.detect(macroCanvas, 25, detectMinScore);
+            const rawMicro = await model.detect(macroCanvas, 30, detectMinScore);
             const scaleX = cropW / macroCanvas.width;
             const scaleY = cropH / macroCanvas.height;
 
-            lastMacroDetections = rawMacro.map(p => ({
+            lastMicroFocusDetections = rawMicro.map(p => ({
+              class: p.class,
+              score: p.score,
+              isMacro: true,
+              bbox: [
+                cropX + (p.bbox[0] * scaleX),
+                cropY + (p.bbox[1] * scaleY),
+                p.bbox[2] * scaleX,
+                p.bbox[3] * scaleY
+              ]
+            }));
+
+          } else {
+            // Fase 2: Pemindaian Meja / Objek Bawah (Tabletop & Desk Horizon, ~1.8x Zoom)
+            let cropW = Math.round(vw * 0.70);
+            let cropH = Math.round(vh * 0.52);
+            let cropX = Math.round((vw - cropW) / 2);
+            let cropY = Math.round(vh * 0.44);
+
+            macroCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, macroCanvas.width, macroCanvas.height);
+
+            const rawDesk = await model.detect(macroCanvas, 30, detectMinScore);
+            const scaleX = cropW / macroCanvas.width;
+            const scaleY = cropH / macroCanvas.height;
+
+            lastDeskDetections = rawDesk.map(p => ({
               class: p.class,
               score: p.score,
               isMacro: true,
@@ -1133,11 +1241,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }));
           }
 
-          frameScanIndex = (frameScanIndex + 1) % 2;
+          // Gabungkan hasil pemindaian multi-skala (Global + Micro Focus + Tabletop Desk)
+          const combined = mergeMultiScaleDetections(lastGlobalDetections, lastMicroFocusDetections, lastDeskDetections);
 
-          // Gabungkan hasil pemindaian multi-skala (Global + Macro)
-          const combined = mergeMultiScaleDetections(lastGlobalDetections, lastMacroDetections);
-          const filtered = combined.filter(pred => pred.score >= minConfidence);
+          // Terapkan Temporal Box Tracking (Meredam kedip-kedip & menstabilkan objek kecil)
+          const tracked = updateTemporalTracking(combined);
+          const filtered = tracked.filter(pred => pred.score >= minConfidence);
           currentPredictions = filtered;
           lastPredictions = filtered;
 
