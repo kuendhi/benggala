@@ -753,6 +753,158 @@ def analyze_ai():
     }), 200
 
 # -----------------------------------------------------------------------------
+# 2B. POST /api/ai/quick-detail (Profil Terstruktur Kartu AR Cepat < 2 Detik)
+# -----------------------------------------------------------------------------
+@ai_snapshot_bp.route('/api/ai/quick-detail', methods=['POST'])
+@require_api_security(max_requests=25, window_seconds=60)
+def quick_detail_ai():
+    """
+    Endpoint AI ultra-cepat untuk menghasilkan profil terstruktur kartu AR (JSON murni).
+    Didukung Gemini Vision (jika foto frame ada) dengan fallback otomatis ke DeepSeek.
+    """
+    payload = request.get_json(silent=True) or {}
+    raw_label = str(payload.get('label') or '').strip()
+    if not raw_label:
+        return jsonify({
+            "status": "error",
+            "message": "Parameter 'label' wajib diisi."
+        }), 400
+
+    clean_label = raw_label[:80].strip()
+    image_b64 = payload.get('image')
+    if image_b64:
+        image_b64 = re.sub(r'^data:image/[^;]+;base64,', '', str(image_b64).strip(), flags=re.IGNORECASE).strip()
+        missing_pad = len(image_b64) % 4
+        if missing_pad:
+            image_b64 += '=' * (4 - missing_pad)
+
+    settings = get_all_settings()
+    gemini_key = _clean_api_key(settings.get('gemini_api_key'), 'GEMINI_API_KEY')
+    deepseek_key = _clean_api_key(settings.get('deepseek_api_key'), 'DEEPSEEK_API_KEY')
+
+    if not gemini_key and not deepseek_key:
+        return jsonify({
+            "status": "error",
+            "message": "API Key Gemini/DeepSeek belum dikonfigurasi di Pengaturan."
+        }), 400
+
+    gemini_model = (settings.get('gemini_model') or os.getenv('GEMINI_MODEL') or 'gemini-2.5-flash').strip()
+    deepseek_model = (settings.get('deepseek_model') or os.getenv('DEEPSEEK_MODEL') or 'deepseek-chat').strip()
+
+    prompt_text = (
+        f"Analisis objek '{clean_label}' secara presisi dan ringkas.\n"
+        "Wajib kembalikan HANYA JSON murni (dilarang ada teks atau markdown lain di luar objek JSON) "
+        "dengan struktur persis seperti ini:\n"
+        "{\n"
+        '  "title": "Nama spesifik objek dalam Bahasa Indonesia (maks 4 kata)",\n'
+        '  "category": "BARANG | HEWAN | TUMBUHAN | MAKANAN | ELEKTRONIK | KENDARAAN | UMUM",\n'
+        '  "utility": "Kegunaan atau peran utamanya (maks 14 kata)",\n'
+        '  "detail": "Asal, material, proses pembuatan, atau habitat khasnya (maks 16 kata)",\n'
+        '  "extra_tip": "Fakta unik, cara pakai, atau perkiraan kondisi visual (maks 14 kata)",\n'
+        '  "safety": "aman | waspada | bahaya",\n'
+        '  "safetyNote": "Catatan keamanan singkat (maks 8 kata)"\n'
+        "}"
+    )
+
+    system_prompt = "Anda adalah AI analitik Benggala OS yang selalu merespons HANYA dengan JSON valid bahasa Indonesia."
+
+    raw_response = ""
+    provider_used = "gemini"
+
+    # 1. Coba Gemini Vision terlebih dahulu jika API Key tersedia
+    if gemini_key:
+        success, res = _call_gemini_vision(
+            api_key=gemini_key,
+            prompt=prompt_text,
+            image_b64=image_b64,
+            system_prompt=system_prompt,
+            references=None,
+            model=gemini_model
+        )
+        if success:
+            raw_response = res
+            provider_used = "gemini"
+        elif deepseek_key:
+            # Fallback ke DeepSeek jika Gemini limit/gagal
+            success_ds, res_ds = _call_deepseek_text(
+                api_key=deepseek_key,
+                system_prompt=system_prompt,
+                user_prompt=prompt_text,
+                references=None,
+                model=deepseek_model
+            )
+            if success_ds:
+                raw_response = res_ds
+                provider_used = "deepseek"
+            else:
+                raw_response = res
+    elif deepseek_key:
+        success_ds, res_ds = _call_deepseek_text(
+            api_key=deepseek_key,
+            system_prompt=system_prompt,
+            user_prompt=prompt_text,
+            references=None,
+            model=deepseek_model
+        )
+        if success_ds:
+            raw_response = res_ds
+            provider_used = "deepseek"
+        else:
+            return jsonify({
+                "status": "error",
+                "message": f"DeepSeek gagal: {res_ds}"
+            }), 502
+
+    # 2. Parsing JSON Defensif
+    parsed_data = None
+    try:
+        cleaned_json = raw_response.strip()
+        cleaned_json = re.sub(r'^```(?:json)?\s*', '', cleaned_json, flags=re.IGNORECASE)
+        cleaned_json = re.sub(r'\s*```$', '', cleaned_json)
+        m = re.search(r'\{[\s\S]*\}', cleaned_json)
+        if m:
+            parsed_data = json.loads(m.group(0))
+    except Exception:
+        parsed_data = None
+
+    if not isinstance(parsed_data, dict):
+        # Fallback aman jika model tidak mengembalikan struktur JSON sempurna
+        parsed_data = {
+            "title": clean_label.title(),
+            "category": "UMUM",
+            "utility": f"Objek visual teridentifikasi sebagai {clean_label}.",
+            "detail": raw_response[:90].strip() if raw_response else "Hasil identifikasi visual real-time.",
+            "extra_tip": "Analisis live real-time Benggala OS.",
+            "safety": "aman",
+            "safetyNote": "Amati objek dengan saksama."
+        }
+
+    # Normalisasi field
+    category_raw = str(parsed_data.get("category") or "UMUM").upper()
+    valid_categories = ('BARANG', 'HEWAN', 'TUMBUHAN', 'MAKANAN', 'ELEKTRONIK', 'KENDARAAN', 'DEKORASI', 'MANUSIA', 'UMUM')
+    category_clean = category_raw if category_raw in valid_categories else 'UMUM'
+
+    safety_raw = str(parsed_data.get("safety") or "aman").lower().strip()
+    safety_clean = safety_raw if safety_raw in ('aman', 'waspada', 'bahaya') else 'aman'
+
+    data_out = {
+        "title": str(parsed_data.get("title") or clean_label.title())[:40],
+        "category": category_clean,
+        "utility": str(parsed_data.get("utility") or f"Objek teridentifikasi {clean_label}.")[:150],
+        "detail": str(parsed_data.get("detail") or "Data visual diproses AI.")[:180],
+        "extra_tip": str(parsed_data.get("extra_tip") or "")[:150],
+        "safety": safety_clean,
+        "safetyNote": str(parsed_data.get("safetyNote") or "Amati secara saksama.")[:60],
+        "source": "AI LIVE"
+    }
+
+    return jsonify({
+        "status": "ok",
+        "provider": provider_used,
+        "data": data_out
+    }), 200
+
+# -----------------------------------------------------------------------------
 # 3. POST /api/telegram/send (Kirim Notifikasi Telegram Bot)
 # -----------------------------------------------------------------------------
 @ai_snapshot_bp.route('/api/telegram/send', methods=['POST'])

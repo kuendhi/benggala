@@ -302,6 +302,15 @@
       }
 
       ctx.restore();
+    },
+
+    /**
+     * Mendorong hasil analisis AI ke modul AR Callout luar kotak (Task 18C)
+     */
+    applyAiAnalysis: function (label, analysisText, structuredData) {
+      if (window.BenggalaArCallout && typeof window.BenggalaArCallout.applyAiAnalysis === 'function') {
+        window.BenggalaArCallout.applyAiAnalysis(label, analysisText, structuredData);
+      }
     }
   };
 

@@ -215,6 +215,11 @@
           <span class="ar-label">INFO:</span>
           <span class="ar-val">${escapeHtml(profile.detail || '-')}</span>
         </div>
+        ${profile.extra_tip ? `
+        <div class="ar-info-line ar-extra-tip">
+          <span class="ar-label">DETAIL:</span>
+          <span class="ar-val">${escapeHtml(profile.extra_tip)}</span>
+        </div>` : ''}
       </div>
 
       <div class="ar-card-footer">
@@ -222,9 +227,13 @@
           <span class="ar-safety-dot"></span>
           <span class="ar-safety-text">${safetyLabel}</span>
         </div>
-        <button type="button" id="btnArEnrichAi" class="ar-btn-enrich" title="Analisis visual mendalam dengan Gemini Vision">
-          ✨ Detail AI
-        </button>
+        ${profile.source === 'AI LIVE' ? `
+          <span class="ar-badge-source source-ai" style="padding: 3px 6px; font-weight: 700;">✓ AI LIVE</span>
+        ` : `
+          <button type="button" id="btnArEnrichAi" class="ar-btn-enrich" title="Analisis visual mendalam dengan Gemini Vision">
+            ✨ Detail AI
+          </button>
+        `}
       </div>
     `;
 
@@ -234,21 +243,176 @@
       btnEnrich.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
-
-        // Trigger aksi analisis AI di sistem Cockpit
-        const btnLlm = document.getElementById('btnLlmAnalyze');
-        if (btnLlm) {
-          btnLlm.click();
-        } else if (window.BenggalaCockpit && typeof window.BenggalaCockpit.openPanel === 'function') {
-          window.BenggalaCockpit.openPanel('ai');
-        }
-
-        // Buka panel AI jika belum terbuka
-        const aiPanel = document.getElementById('panelAi');
-        if (aiPanel && aiPanel.hidden && window.BenggalaCockpit && typeof window.BenggalaCockpit.openPanel === 'function') {
-          window.BenggalaCockpit.openPanel('ai');
-        }
+        handleQuickDetailClick(btnEnrich);
       });
+    }
+  }
+
+  /**
+   * Menangkap frame kamera terkompresi ringan (maks 512px, JPEG 0.72) untuk efisiensi jaringan HP
+   */
+  function captureCompressedFrame() {
+    try {
+      const videoEl = document.getElementById('webcam');
+      if (!videoEl || !videoEl.videoWidth || !videoEl.videoHeight) return null;
+      const maxW = 512;
+      const scale = Math.min(1, maxW / videoEl.videoWidth);
+      const cw = Math.round(videoEl.videoWidth * scale);
+      const ch = Math.round(videoEl.videoHeight * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = cw;
+      canvas.height = ch;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(videoEl, 0, 0, cw, ch);
+      return canvas.toDataURL('image/jpeg', 0.72);
+    } catch (e) {
+      console.warn('Gagal menangkap frame untuk Quick Detail AI:', e);
+      return null;
+    }
+  }
+
+  /**
+   * Handler klik tombol ✨ Detail AI: Memanggil POST /api/ai/quick-detail
+   */
+  async function handleQuickDetailClick(btnEl) {
+    if (!btnEl || btnEl.disabled) return;
+    if (!activePredictionRef) return;
+
+    const rawLabel = activePredictionRef.customLabel || activePredictionRef.class || 'objek';
+    const cleanLabel = String(rawLabel).replace(/^★\s*/, '').trim();
+
+    // 1. Ubah status tombol jadi Memindai AI... (anti double-click)
+    const originalHtml = btnEl.innerHTML;
+    btnEl.disabled = true;
+    btnEl.innerHTML = '⏳ Memindai AI...';
+    btnEl.style.opacity = '0.75';
+
+    // 2. Ambil snapshot frame terkompresi
+    const compressedImage = captureCompressedFrame();
+
+    // 3. Kirim ke /api/ai/quick-detail
+    const payload = {
+      label: cleanLabel,
+      image: compressedImage
+    };
+
+    try {
+      let resJson = null;
+      if (typeof window.postWithCsrf === 'function') {
+        resJson = await window.postWithCsrf('/api/ai/quick-detail', payload);
+      } else {
+        const base = window.BASE_PATH || '';
+        const token = window.CSRF_TOKEN || document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const res = await fetch(`${base}/api/ai/quick-detail`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': token
+          },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || `HTTP ${res.status}`);
+        }
+        resJson = await res.json();
+      }
+
+      if (resJson && resJson.status === 'ok' && resJson.data) {
+        // 4. Sukses: perbarui kartu & cache
+        applyAiAnalysis(cleanLabel, null, resJson.data);
+      } else {
+        throw new Error(resJson.message || 'Gagal memproses detail AI');
+      }
+    } catch (err) {
+      // 5. Gagal: tampilkan pesan error 3 detik
+      console.warn('Quick Detail AI error:', err);
+      btnEl.innerHTML = '⚠️ Gagal';
+      btnEl.style.color = '#ef4444';
+      setTimeout(() => {
+        if (btnEl && cardEl && cardEl.contains(btnEl)) {
+          btnEl.disabled = false;
+          btnEl.innerHTML = originalHtml;
+          btnEl.style.color = '';
+          btnEl.style.opacity = '';
+        }
+      }, 3000);
+    }
+  }
+
+  /**
+   * Menerapkan hasil analisis AI (dari Quick Detail, Auto-Lock, atau tombol Analisis AI utama)
+   * ke kartu AR di luar kotak dan menyimpan ke cache sesi (TTL 10 menit).
+   * @param {string} label Nama label objek
+   * @param {string} [analysisText] Teks analisis bebas dari AI Vision
+   * @param {Object} [structuredData] Data profil terstruktur { title, category, utility, detail, extra_tip, safety, safetyNote }
+   */
+  function applyAiAnalysis(label, analysisText, structuredData) {
+    if (!label) return;
+    const cleanLabel = String(label).replace(/^★\s*/, '').trim();
+    const cleanLower = cleanLabel.toLowerCase();
+
+    let aiProfile = null;
+    if (structuredData && typeof structuredData === 'object') {
+      aiProfile = {
+        title: structuredData.title || cleanLabel,
+        category: (structuredData.category || 'AI ENRICHED').toUpperCase(),
+        utility: structuredData.utility || 'Hasil analisis konteks visual AI.',
+        detail: structuredData.detail || 'Diproses dengan Gemini Vision / DeepSeek.',
+        extra_tip: structuredData.extra_tip || '',
+        safety: structuredData.safety || 'aman',
+        safetyNote: structuredData.safetyNote || 'Data analisis real-time terkini.',
+        source: 'AI LIVE'
+      };
+    } else if (analysisText && typeof analysisText === 'string') {
+      // Ekstrak ringkasan dari teks deskriptif
+      const clean = analysisText.replace(/[*#_]/g, '').split('`').join('').trim();
+      const lines = clean.split(/\n+/).map(l => l.trim()).filter(Boolean);
+      const utilitySummary = lines[0] || 'Hasil analisis visual AI real-time.';
+      const detailSummary = lines[1] || 'Telah diperkaya dengan pemahaman multimodal.';
+
+      let safety = 'aman';
+      const low = clean.toLowerCase();
+      if (low.includes('bahaya') || low.includes('beracun') || low.includes('tajam')) {
+        safety = 'bahaya';
+      } else if (low.includes('waspada') || low.includes('hati-hati') || low.includes('panas')) {
+        safety = 'waspada';
+      }
+
+      aiProfile = {
+        title: cleanLabel,
+        category: 'AI ENRICHED',
+        utility: utilitySummary.slice(0, 140),
+        detail: detailSummary.slice(0, 160),
+        extra_tip: lines[2] ? lines[2].slice(0, 120) : '',
+        safety: safety,
+        safetyNote: safety === 'bahaya' ? 'Perhatikan peringatan keselamatan!' : 'Amati objek dengan saksama.',
+        source: 'AI LIVE'
+      };
+    }
+
+    if (aiProfile) {
+      // Simpan di BenggalaObjectProfiles AI session cache
+      if (window.BenggalaObjectProfiles && typeof window.BenggalaObjectProfiles.setAiCache === 'function') {
+        window.BenggalaObjectProfiles.setAiCache(cleanLower, aiProfile);
+      }
+
+      // Jika kartu AR sedang aktif, langsung perbarui tampilannya ke mode AI LIVE
+      if (isCardVisible && activePredictionRef) {
+        const activeClass = String(activePredictionRef.customLabel || activePredictionRef.class || '').replace(/^★\s*/, '').trim().toLowerCase();
+        if (activeClass === cleanLower || !activeClass) {
+          const themeColor = '#10b981';
+          renderCardContent(activePredictionRef, aiProfile, currentOptions.dimensionsText, themeColor, currentOptions.isLocked);
+          if (svgEl) {
+            const lines = svgEl.querySelectorAll('polyline, circle');
+            lines.forEach(el => {
+              if (el.getAttribute('stroke')) el.setAttribute('stroke', themeColor);
+              if (el.getAttribute('fill') && el.getAttribute('fill') !== '#ffffff') el.setAttribute('fill', themeColor);
+            });
+          }
+        }
+      }
     }
   }
 
@@ -397,6 +561,8 @@
   window.BenggalaArCallout = {
     update,
     hide,
+    applyAiAnalysis,
+    applyAiDetail: applyAiAnalysis,
     isVisible: () => isCardVisible,
     getTarget: () => activePredictionRef
   };

@@ -1932,6 +1932,10 @@ document.addEventListener('DOMContentLoaded', () => {
           llmAnalysisContent.textContent = result.analysis;
         }
 
+        // Sinkronisasi otomatis ke Kartu AR Callout luar kotak (Task 18C)
+        const primaryTargetLabel = (currentPredictions && currentPredictions[0] && (currentPredictions[0].customLabel || currentPredictions[0].class)) || 'objek';
+        window.BenggalaArCallout?.applyAiAnalysis(primaryTargetLabel, result.analysis, result.structured_data || result.data);
+
         const llmReferencesBadge = document.getElementById('llmReferencesBadge');
         if (llmReferencesBadge) {
           if (result.references_used && result.references_used > 0) {
@@ -2116,6 +2120,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (llmAnalysisContent) {
           llmAnalysisContent.textContent = result.analysis;
         }
+
+        // Sinkronisasi otomatis ke Kartu AR Callout luar kotak (Task 18C)
+        const primaryTargetLabel = (currentPredictions && currentPredictions[0] && (currentPredictions[0].customLabel || currentPredictions[0].class)) || 'objek';
+        window.BenggalaArCallout?.applyAiAnalysis(primaryTargetLabel, result.analysis, result.structured_data || result.data);
 
         const llmReferencesBadge = document.getElementById('llmReferencesBadge');
         if (llmReferencesBadge) {
