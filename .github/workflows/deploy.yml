@@ -73,6 +73,8 @@ jobs:
                           print(f'Successfully deleted legacy {f} from FTP')
                       except Exception as e:
                           print(f'File {f} not present or skipped: {e}')
+                  print('--- REMOTE FTP DIRECTORY LISTING ---')
+                  ftp.retrlines('LIST')
                   ftp.quit()
               except Exception as e:
                   print('FTP cleanup warning:', e)

@@ -1,6 +1,13 @@
 # ==============================================================================
-# Benggala Server Hardening (.htaccess)
+# Benggala Server Hardening & Passenger Routing (.htaccess)
 # ==============================================================================
+
+# Aktifkan Phusion Passenger untuk Flask Application
+<IfModule mod_passenger.c>
+    PassengerEnabled on
+    PassengerAppType wsgi
+    PassengerStartupFile passenger_wsgi.py
+</IfModule>
 
 # 1. Matikan Directory Listing
 Options -Indexes
