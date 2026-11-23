@@ -392,11 +392,13 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error('Library COCO-SSD tidak termuat. Periksa koneksi internet ke CDN.');
       }
 
-      // Gunakan mobilenet_v2 untuk ekstraksi fitur spasial lebih detail pada objek kecil
+      // Pada smartphone / mobile gunakan lite_mobilenet_v2 agar FPS mencapai 30+ FPS (bebas lag)
+      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const targetBase = isMobileDevice ? 'lite_mobilenet_v2' : 'mobilenet_v2';
       try {
-        model = await cocoSsd.load({ base: 'mobilenet_v2' });
-      } catch (errV2) {
-        console.warn('Gagal memuat mobilenet_v2, fallback ke default lite_mobilenet_v2:', errV2);
+        model = await cocoSsd.load({ base: targetBase });
+      } catch (errLoad) {
+        console.warn(`Gagal memuat ${targetBase}, fallback ke default:`, errLoad);
         model = await cocoSsd.load();
       }
 
@@ -994,140 +996,91 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
-  // 3. Loop Deteksi Real-Time Tri-Phase Multi-Skala & Temporal Tracking
-  // Memadukan 3 Zona Pemindaian Bergantian:
-  // - Fase 0: Pemindaian Global (Wide Scene)
-  // - Fase 1: Pemindaian Ultra-Micro Focus (Center / Focus Reticle, ~2.5x Zoom)
-  // - Fase 2: Pemindaian Permukaan Meja / Objek Bawah (Tabletop & Desk Horizon, ~1.8x Zoom)
-  // Dilengkapi Temporal Box Tracking untuk Meredam Kedip-kedip & Mengunci Objek Kecil
+  // 3. Loop Deteksi Real-Time dengan Class-Agnostic NMS & Containment Suppression
+  // Mencegah Objek Bayangan / Kotak Bersarang di Dalam Objek Lain (Anti-Ghosting)
+  // serta Menjaga Kinerja Tinggi 30+ FPS di Perangkat Mobile
   // =========================================================================
-  const macroCanvas = document.createElement('canvas');
-  macroCanvas.width = 440;
-  macroCanvas.height = 440;
-  const macroCtx = macroCanvas.getContext('2d', { willReadFrequently: true });
-
   const zoomFeedCanvas = document.createElement('canvas');
   zoomFeedCanvas.width = 640;
   zoomFeedCanvas.height = 480;
   const zoomFeedCtx = zoomFeedCanvas.getContext('2d', { willReadFrequently: true });
 
-  let frameScanIndex = 0;
-  let lastGlobalDetections = [];
-  let lastMicroFocusDetections = [];
-  let lastDeskDetections = [];
-
-  // Temporal Box Tracking Map: Menyimpan riwayat objek agar tidak berkedip-kedip saat ada sedikit noise
-  const temporalBoxTracker = new Map();
-  let trackerIdSeq = 0;
-
-  function calculateIoU(boxA, boxB) {
+  /**
+   * Menghitung IoU dan rasio tumpang-tindih (Containment Ratio)
+   * untuk mendeteksi apakah suatu objek berada di dalam objek lain (seperti bayangan mangkuk di dalam botol).
+   */
+  function calculateBoxOverlap(boxA, boxB) {
     const xA = Math.max(boxA[0], boxB[0]);
     const yA = Math.max(boxA[1], boxB[1]);
     const xB = Math.min(boxA[0] + boxA[2], boxB[0] + boxB[2]);
     const yB = Math.min(boxA[1] + boxA[3], boxB[1] + boxB[3]);
 
     const interArea = Math.max(0, xB - xA) * Math.max(0, yB - yA);
-    if (interArea <= 0) return 0;
+    if (interArea <= 0) {
+      return { iou: 0, overlapA: 0, overlapB: 0 };
+    }
 
     const areaA = boxA[2] * boxA[3];
     const areaB = boxB[2] * boxB[3];
-    return interArea / (areaA + areaB - interArea);
+    const iou = interArea / (areaA + areaB - interArea);
+    const overlapA = interArea / areaA; // Berapa % Box A berada di dalam Box B
+    const overlapB = interArea / areaB; // Berapa % Box B berada di dalam Box A
+
+    return { iou, overlapA, overlapB };
   }
 
-  function mergeMultiScaleDetections(globals, micros, desks) {
-    const merged = [...globals];
+  /**
+   * Class-Agnostic Non-Maximum Suppression (NMS) & Containment Suppression.
+   * Menghilangkan objek bayangan / kotak palsu yang tumpang-tindih atau bersarang di dalam objek lain
+   * (seperti mangkuk atau meja makan di dalam botol).
+   */
+  function suppressNestedAndOverlappingBoxes(predictions, iouThreshold = 0.35, containmentThreshold = 0.50) {
+    if (!predictions || predictions.length <= 1) return predictions || [];
 
-    function mergeList(sourceList) {
-      if (!sourceList || !sourceList.length) return;
-      for (const item of sourceList) {
-        let matchedIdx = -1;
-        let maxIou = 0;
-        for (let i = 0; i < merged.length; i++) {
-          const iou = calculateIoU(merged[i].bbox, item.bbox);
-          if (iou > maxIou) {
-            maxIou = iou;
-            matchedIdx = i;
-          }
+    // Filter awal: Supresi false positive "dining table" / meja makan yang tumpang-tindih dengan objek foreground
+    const cleaned = predictions.filter(p => {
+      // Jika meja makan berukuran kecil atau akurasinya di bawah 0.70 saat ada objek lain
+      if (p.class === 'dining table' && p.score < 0.70) {
+        return false;
+      }
+      return true;
+    });
+
+    // Urutkan dari confidence tertinggi ke terendah
+    const sorted = [...cleaned].sort((a, b) => b.score - a.score);
+    const accepted = [];
+
+    for (const cand of sorted) {
+      let isDuplicateOrNested = false;
+
+      for (const win of accepted) {
+        const { iou, overlapA, overlapB } = calculateBoxOverlap(win.bbox, cand.bbox);
+
+        // 1. IoU tinggi (kotak hampir berimpit)
+        if (iou > iouThreshold) {
+          isDuplicateOrNested = true;
+          break;
         }
 
-        if (matchedIdx >= 0 && maxIou > 0.28) {
-          if (item.score > merged[matchedIdx].score) {
-            merged[matchedIdx] = item;
-          }
-        } else {
-          merged.push(item);
+        // 2. Kotak kandidat berada di dalam objek yang sudah diterima (misal mangkuk di dalam botol)
+        if (overlapB > containmentThreshold) {
+          isDuplicateOrNested = true;
+          break;
         }
+
+        // 3. Kotak yang sudah diterima berada di dalam kandidat ini (kandidat membungkus objek spesifik dengan skor lebih rendah)
+        if (overlapA > containmentThreshold) {
+          isDuplicateOrNested = true;
+          break;
+        }
+      }
+
+      if (!isDuplicateOrNested) {
+        accepted.push(cand);
       }
     }
 
-    mergeList(micros);
-    mergeList(desks);
-    return merged;
-  }
-
-  function updateTemporalTracking(rawCandidates) {
-    temporalBoxTracker.forEach(entry => {
-      entry.updatedThisFrame = false;
-    });
-
-    for (const cand of rawCandidates) {
-      let bestTrackKey = null;
-      let bestIou = 0;
-
-      temporalBoxTracker.forEach((entry, key) => {
-        if (entry.class === cand.class) {
-          const iou = calculateIoU(entry.bbox, cand.bbox);
-          if (iou > bestIou) {
-            bestIou = iou;
-            bestTrackKey = key;
-          }
-        }
-      });
-
-      if (bestTrackKey && bestIou > 0.25) {
-        const trk = temporalBoxTracker.get(bestTrackKey);
-        const LERP_TRACK = 0.70;
-        trk.bbox[0] += (cand.bbox[0] - trk.bbox[0]) * LERP_TRACK;
-        trk.bbox[1] += (cand.bbox[1] - trk.bbox[1]) * LERP_TRACK;
-        trk.bbox[2] += (cand.bbox[2] - trk.bbox[2]) * LERP_TRACK;
-        trk.bbox[3] += (cand.bbox[3] - trk.bbox[3]) * LERP_TRACK;
-        trk.score = Math.max(trk.score * 0.8, cand.score);
-        trk.isMacro = trk.isMacro || cand.isMacro;
-        trk.missedFrames = 0;
-        trk.updatedThisFrame = true;
-      } else {
-        trackerIdSeq++;
-        temporalBoxTracker.set(trackerIdSeq, {
-          class: cand.class,
-          bbox: [...cand.bbox],
-          score: cand.score,
-          isMacro: !!cand.isMacro,
-          missedFrames: 0,
-          updatedThisFrame: true
-        });
-      }
-    }
-
-    const resultList = [];
-    temporalBoxTracker.forEach((entry, key) => {
-      if (!entry.updatedThisFrame) {
-        entry.missedFrames++;
-        entry.score *= 0.94; // Decay lembut
-      }
-
-      if (entry.missedFrames > 3 || entry.score < 0.12) {
-        temporalBoxTracker.delete(key);
-      } else {
-        resultList.push({
-          class: entry.class,
-          score: entry.score,
-          bbox: entry.bbox,
-          isMacro: entry.isMacro
-        });
-      }
-    });
-
-    return resultList;
+    return accepted;
   }
 
   function startDetectionLoop() {
@@ -1145,108 +1098,48 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           const vw = video.videoWidth || 640;
           const vh = video.videoHeight || 480;
-          const detectMinScore = Math.max(0.14, Math.min(minConfidence * 0.80, 0.28));
 
-          const phase = frameScanIndex % 3;
-          frameScanIndex = (frameScanIndex + 1) % 3;
+          // Sensitivitas seimbang: filter noise di bawah 0.30
+          const detectMinScore = Math.max(0.30, minConfidence * 0.90);
 
-          if (phase === 0) {
-            // Fase 0: Pemindaian Global (Wide Scene)
-            let scanInput = video;
-            let zoomScale = 1.0;
-            let zoomOffsetX = 0;
-            let zoomOffsetY = 0;
+          let scanInput = video;
+          let zoomScale = 1.0;
+          let zoomOffsetX = 0;
+          let zoomOffsetY = 0;
 
-            if (currentZoom > 1.05) {
-              const cropW = vw / currentZoom;
-              const cropH = vh / currentZoom;
-              zoomOffsetX = (vw - cropW) / 2;
-              zoomOffsetY = (vh - cropH) / 2;
-              zoomFeedCtx.drawImage(video, zoomOffsetX, zoomOffsetY, cropW, cropH, 0, 0, zoomFeedCanvas.width, zoomFeedCanvas.height);
-              scanInput = zoomFeedCanvas;
-              zoomScale = cropW / zoomFeedCanvas.width;
-            }
+          if (currentZoom > 1.05) {
+            const cropW = vw / currentZoom;
+            const cropH = vh / currentZoom;
+            zoomOffsetX = (vw - cropW) / 2;
+            zoomOffsetY = (vh - cropH) / 2;
+            zoomFeedCtx.drawImage(video, zoomOffsetX, zoomOffsetY, cropW, cropH, 0, 0, zoomFeedCanvas.width, zoomFeedCanvas.height);
+            scanInput = zoomFeedCanvas;
+            zoomScale = cropW / zoomFeedCanvas.width;
+          }
 
-            const rawGlobal = await model.detect(scanInput, 45, detectMinScore);
+          const rawDetections = await model.detect(scanInput, 25, detectMinScore);
 
-            if (currentZoom > 1.05) {
-              lastGlobalDetections = rawGlobal.map(p => ({
-                class: p.class,
-                score: p.score,
-                isMacro: false,
-                bbox: [
-                  zoomOffsetX + p.bbox[0] * zoomScale,
-                  zoomOffsetY + p.bbox[1] * zoomScale,
-                  p.bbox[2] * zoomScale,
-                  p.bbox[3] * zoomScale
-                ]
-              }));
-            } else {
-              lastGlobalDetections = rawGlobal.map(p => ({ ...p, isMacro: false }));
-            }
-
-          } else if (phase === 1) {
-            // Fase 1: Pemindaian Ultra-Micro Focus (Center / Focus Reticle Crop, ~2.5x Zoom)
-            let cropW = Math.round(vw * 0.42);
-            let cropH = Math.round(vh * 0.42);
-            let cropX = Math.round((vw - cropW) / 2);
-            let cropY = Math.round((vh - cropH) / 2);
-
-            if (focusState.active && focusState.canvasX !== null && focusState.canvasY !== null) {
-              cropX = Math.max(0, Math.min(vw - cropW, Math.round(focusState.canvasX - cropW / 2)));
-              cropY = Math.max(0, Math.min(vh - cropH, Math.round(focusState.canvasY - cropH / 2)));
-            }
-
-            macroCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, macroCanvas.width, macroCanvas.height);
-
-            const rawMicro = await model.detect(macroCanvas, 30, detectMinScore);
-            const scaleX = cropW / macroCanvas.width;
-            const scaleY = cropH / macroCanvas.height;
-
-            lastMicroFocusDetections = rawMicro.map(p => ({
+          let scaledDetections = rawDetections;
+          if (currentZoom > 1.05) {
+            scaledDetections = rawDetections.map(p => ({
               class: p.class,
               score: p.score,
-              isMacro: true,
               bbox: [
-                cropX + (p.bbox[0] * scaleX),
-                cropY + (p.bbox[1] * scaleY),
-                p.bbox[2] * scaleX,
-                p.bbox[3] * scaleY
-              ]
-            }));
-
-          } else {
-            // Fase 2: Pemindaian Meja / Objek Bawah (Tabletop & Desk Horizon, ~1.8x Zoom)
-            let cropW = Math.round(vw * 0.70);
-            let cropH = Math.round(vh * 0.52);
-            let cropX = Math.round((vw - cropW) / 2);
-            let cropY = Math.round(vh * 0.44);
-
-            macroCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, macroCanvas.width, macroCanvas.height);
-
-            const rawDesk = await model.detect(macroCanvas, 30, detectMinScore);
-            const scaleX = cropW / macroCanvas.width;
-            const scaleY = cropH / macroCanvas.height;
-
-            lastDeskDetections = rawDesk.map(p => ({
-              class: p.class,
-              score: p.score,
-              isMacro: true,
-              bbox: [
-                cropX + (p.bbox[0] * scaleX),
-                cropY + (p.bbox[1] * scaleY),
-                p.bbox[2] * scaleX,
-                p.bbox[3] * scaleY
+                zoomOffsetX + p.bbox[0] * zoomScale,
+                zoomOffsetY + p.bbox[1] * zoomScale,
+                p.bbox[2] * zoomScale,
+                p.bbox[3] * zoomScale
               ]
             }));
           }
 
-          // Gabungkan hasil pemindaian multi-skala (Global + Micro Focus + Tabletop Desk)
-          const combined = mergeMultiScaleDetections(lastGlobalDetections, lastMicroFocusDetections, lastDeskDetections);
+          // 1. Filter awal berdasarkan ambang batas keyakinan pengguna
+          const confidentList = scaledDetections.filter(pred => pred.score >= minConfidence);
 
-          // Terapkan Temporal Box Tracking (Meredam kedip-kedip & menstabilkan objek kecil)
-          const tracked = updateTemporalTracking(combined);
-          const filtered = tracked.filter(pred => pred.score >= minConfidence);
+          // 2. Terapkan Containment Suppression & Class-Agnostic NMS
+          // Menghilangkan bayangan dalam objek (seperti mangkuk / meja di dalam botol)
+          const filtered = suppressNestedAndOverlappingBoxes(confidentList);
+
           currentPredictions = filtered;
           lastPredictions = filtered;
 
