@@ -760,6 +760,9 @@ document.addEventListener('DOMContentLoaded', () => {
     video.srcObject = null;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     cameraPlaceholder.style.display = 'flex';
+    if (window.BenggalaArCallout && typeof window.BenggalaArCallout.hide === 'function') {
+      window.BenggalaArCallout.hide();
+    }
 
     const cameraStage = document.getElementById('cameraStage');
     if (cameraStage) {
@@ -1409,6 +1412,21 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update Simulasi Sinyal ESP32 jika Overlay Visi 2027 sedang terbuka (Task 13B)
       if (window.BenggalaRoadmap && typeof window.BenggalaRoadmap.updateLiveEspSim === 'function' && window.BenggalaRoadmap.isOpen()) {
         window.BenggalaRoadmap.updateLiveEspSim(predictionsSource, video.videoWidth || 640);
+      }
+
+      // HUD AR Callout Futuristik & Garis Konektor (Task 18B)
+      if (window.BenggalaArCallout) {
+        let currentDimText = '';
+        if (pixelsPerCm && pixelsPerCm > 0 && latestActivePrediction && latestActivePrediction.bbox) {
+          const wCm = (latestActivePrediction.bbox[2] / pixelsPerCm).toFixed(1);
+          const hCm = (latestActivePrediction.bbox[3] / pixelsPerCm).toFixed(1);
+          currentDimText = `${wCm}×${hCm} cm`;
+        }
+        const isTargetLocked = (window.BenggalaAutoLock && typeof window.BenggalaAutoLock.isTargetLocked === 'function' && window.BenggalaAutoLock.isTargetLocked()) || (focusState && focusState.active) || false;
+        window.BenggalaArCallout.update(latestActivePrediction, canvas, {
+          dimensionsText: currentDimText || '',
+          isLocked: isTargetLocked || false
+        });
       }
 
       animationFrameId = requestAnimationFrame(renderLoop);

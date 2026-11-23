@@ -104,6 +104,12 @@
           <canvas id="overlay"></canvas>
         </div>
 
+        <!-- Layer AR Callout Futuristik (Task 18B) -->
+        <div id="arCalloutLayer" class="ar-callout-layer" aria-live="polite">
+          <svg id="arConnectorSvg" class="ar-connector-svg"></svg>
+          <div id="arCalloutCard" class="ar-callout-card hidden"></div>
+        </div>
+
         <!-- Starfield animasi latar saat kamera mati -->
         <div class="viewport-stars" id="viewportStars"></div>
 
@@ -777,6 +783,9 @@
 
   <!-- Modul Database Profil Detail Objek Instan & AI Cache (Task 18A) -->
   <script src="{{ asset_url('assets/js/object_profiles.js') }}"></script>
+
+  <!-- Modul HUD AR Callout Futuristik & Garis Konektor (Task 18B) -->
+  <script src="{{ asset_url('assets/js/ar_callout.js') }}"></script>
 
   <!-- Detector Script (Anti-Cache) -->
   <script src="{{ asset_url('assets/js/detector.js') }}"></script>

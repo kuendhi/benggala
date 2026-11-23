@@ -1,0 +1,404 @@
+/**
+ * Benggala OS - HUD AR Callout Futuristik & Garis Konektor (Task 18B)
+ * Menampilkan kartu AR melayang di luar bounding box dengan interpolasi Lerp halus,
+ * garis penunjuk SVG neon dinamis, dan integrasi kamus profil objek lokal/AI.
+ */
+
+(function() {
+  'use strict';
+
+  // DOM Elements
+  let layerEl = null;
+  let svgEl = null;
+  let cardEl = null;
+
+  // State Pelacakan & Lerp Interpolasi
+  let currentX = null;
+  let currentY = null;
+  let lastSeenTime = 0;
+  let isCardVisible = false;
+  let activePredictionRef = null;
+  let currentOptions = {};
+  let animationFrameId = null;
+
+  // Konfigurasi
+  const LERP_FACTOR = 0.22;
+  const HIDE_TIMEOUT_MS = 600;
+  const SAFE_HEADER_TOP = 76;   // Jarak aman dari header atas
+  const SAFE_DOCK_BOTTOM = 120; // Jarak aman dari dock bawah
+
+  /**
+   * Helper Inisialisasi DOM
+   */
+  function initElements() {
+    if (!layerEl) layerEl = document.getElementById('arCalloutLayer');
+    if (!svgEl) svgEl = document.getElementById('arConnectorSvg');
+    if (!cardEl) cardEl = document.getElementById('arCalloutCard');
+    return Boolean(layerEl && svgEl && cardEl);
+  }
+
+  /**
+   * Sanitasi string untuk mencegah XSS saat render template HTML
+   */
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .split('&').join('&amp;')
+      .split('<').join('&lt;')
+      .split('>').join('&gt;')
+      .split('"').join('&quot;')
+      .split("'").join('&#39;');
+  }
+
+  /**
+   * Mengambil warna aksen HUD berdasarkan profil dan status
+   */
+  function getThemeColor(profile) {
+    if (!profile) return '#00f0ff';
+    if (profile.safety === 'bahaya') return '#ef4444';
+    if (profile.source === 'AI LIVE') return '#10b981';
+    if (profile.source === 'MEMORI DB') return '#fbbf24';
+    return '#00f0ff'; // LOKAL Default (Cyan Neon)
+  }
+
+  /**
+   * Sembunyikan kartu AR dan bersihkan SVG
+   */
+  function hide() {
+    if (!cardEl && !initElements()) return;
+    if (cardEl) {
+      cardEl.classList.add('hidden');
+    }
+    if (svgEl) {
+      svgEl.innerHTML = '';
+    }
+    isCardVisible = false;
+    currentX = null;
+    currentY = null;
+    activePredictionRef = null;
+  }
+
+  /**
+   * Render garis konektor SVG futuristik (Leader Line)
+   * Menggambar polyline bersiku/diagonal dan bulatan node di tepi kotak
+   */
+  function renderConnectorLine(box, cardPos, side, themeColor) {
+    if (!svgEl || !layerEl) return;
+
+    const layerRect = layerEl.getBoundingClientRect();
+    const svgW = layerRect.width;
+    const svgH = layerRect.height;
+
+    // Pastikan viewBox dan ukuran SVG sinkron dengan layer
+    svgEl.setAttribute('width', svgW);
+    svgEl.setAttribute('height', svgH);
+    svgEl.setAttribute('viewBox', `0 0 ${svgW} ${svgH}`);
+
+    let startX = 0;
+    let startY = 0;
+    let endX = 0;
+    let endY = 0;
+
+    const cardW = cardPos.w;
+    const cardH = cardPos.h;
+    const cx = cardPos.x;
+    const cy = cardPos.y;
+
+    // Tentukan titik start (pada tepi bounding box) dan titik end (pada tepi kartu AR)
+    if (side === 'right') {
+      startX = box.x + box.w;
+      startY = Math.max(box.y, Math.min(box.y + box.h, cy + cardH * 0.35));
+      endX = cx;
+      endY = cy + cardH * 0.35;
+    } else if (side === 'left') {
+      startX = box.x;
+      startY = Math.max(box.y, Math.min(box.y + box.h, cy + cardH * 0.35));
+      endX = cx + cardW;
+      endY = cy + cardH * 0.35;
+    } else if (side === 'top') {
+      startX = box.x + box.w * 0.5;
+      startY = box.y;
+      endX = cx + cardW * 0.5;
+      endY = cy + cardH;
+    } else { // bottom
+      startX = box.x + box.w * 0.5;
+      startY = box.y + box.h;
+      endX = cx + cardW * 0.5;
+      endY = cy;
+    }
+
+    // Bangun jalur polyline bersiku HUD sci-fi
+    let points = '';
+    if (side === 'right' || side === 'left') {
+      const midX = startX + (endX - startX) * 0.45;
+      points = `${startX.toFixed(1)},${startY.toFixed(1)} ${midX.toFixed(1)},${startY.toFixed(1)} ${midX.toFixed(1)},${endY.toFixed(1)} ${endX.toFixed(1)},${endY.toFixed(1)}`;
+    } else {
+      const midY = startY + (endY - startY) * 0.45;
+      points = `${startX.toFixed(1)},${startY.toFixed(1)} ${startX.toFixed(1)},${midY.toFixed(1)} ${endX.toFixed(1)},${midY.toFixed(1)} ${endX.toFixed(1)},${endY.toFixed(1)}`;
+    }
+
+    // Render node titik awal & garis glow bercahaya
+    svgEl.innerHTML = `
+      <defs>
+        <filter id="arLineGlow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="2.5" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
+      </defs>
+      <!-- Garis Glow -->
+      <polyline points="${points}" fill="none" stroke="${themeColor}" stroke-width="3" stroke-opacity="0.38" filter="url(#arLineGlow)" stroke-linecap="round" stroke-linejoin="round" />
+      <!-- Garis Tajam Utama -->
+      <polyline points="${points}" fill="none" stroke="${themeColor}" stroke-width="1.6" stroke-opacity="0.95" stroke-linecap="round" stroke-linejoin="round" />
+      <!-- Node Titik Target di Sudut/Tepi Kotak -->
+      <circle cx="${startX.toFixed(1)}" cy="${startY.toFixed(1)}" r="3.5" fill="${themeColor}" filter="url(#arLineGlow)" />
+      <circle cx="${startX.toFixed(1)}" cy="${startY.toFixed(1)}" r="1.8" fill="#ffffff" />
+      <!-- Titik Pin Masuk Kartu -->
+      <circle cx="${endX.toFixed(1)}" cy="${endY.toFixed(1)}" r="2.2" fill="${themeColor}" />
+    `;
+  }
+
+  /**
+   * Render template konten HTML pada `#arCalloutCard`
+   */
+  function renderCardContent(prediction, profile, dimensionsText, themeColor, isLocked) {
+    if (!cardEl) return;
+
+    const sourceBadgeMap = {
+      'AI LIVE': '<span class="ar-badge-source source-ai">✨ AI LIVE</span>',
+      'MEMORI DB': '<span class="ar-badge-source source-db">★ DB</span>',
+      'LOKAL': '<span class="ar-badge-source source-local">⚡ LOKAL</span>'
+    };
+
+    const sourceHtml = sourceBadgeMap[profile.source] || '<span class="ar-badge-source source-local">⚡ LOKAL</span>';
+    const categoryHtml = `<span class="ar-badge-category">${escapeHtml(profile.category || 'OBJEK')}</span>`;
+    const scoreVal = prediction && typeof prediction.score === 'number' ? Math.round(prediction.score * 100) : 0;
+    const scoreHtml = scoreVal > 0 ? `<span class="ar-badge-score">${scoreVal}%</span>` : '';
+
+    const lockBadge = isLocked ? '<span class="ar-badge-lock" title="Target Terkunci">🔒 LOCK</span>' : '';
+    const dimHtml = dimensionsText ? `<span class="ar-callout-dim">${escapeHtml(dimensionsText)}</span>` : '';
+
+    // Status keselamatan
+    const safety = profile.safety || 'aman';
+    let safetyDotClass = 'safety-safe';
+    let safetyLabel = 'Aman';
+    if (safety === 'bahaya') {
+      safetyDotClass = 'safety-danger';
+      safetyLabel = 'BAHAYA';
+    } else if (safety === 'waspada') {
+      safetyDotClass = 'safety-warning';
+      safetyLabel = 'Waspada';
+    }
+
+    cardEl.style.setProperty('--ar-theme-color', themeColor);
+
+    cardEl.innerHTML = `
+      <div class="ar-card-header">
+        <div class="ar-card-badges">
+          ${categoryHtml}
+          ${sourceHtml}
+          ${lockBadge}
+        </div>
+        ${scoreHtml}
+      </div>
+
+      <div class="ar-card-title-row">
+        <h4 class="ar-card-title">${escapeHtml(profile.title || prediction.class)}</h4>
+        ${dimHtml}
+      </div>
+
+      <div class="ar-card-body">
+        <div class="ar-info-line">
+          <span class="ar-label">FUNGSI:</span>
+          <span class="ar-val">${escapeHtml(profile.utility || '-')}</span>
+        </div>
+        <div class="ar-info-line">
+          <span class="ar-label">INFO:</span>
+          <span class="ar-val">${escapeHtml(profile.detail || '-')}</span>
+        </div>
+      </div>
+
+      <div class="ar-card-footer">
+        <div class="ar-safety-indicator ${safetyDotClass}" title="${escapeHtml(profile.safetyNote || '')}">
+          <span class="ar-safety-dot"></span>
+          <span class="ar-safety-text">${safetyLabel}</span>
+        </div>
+        <button type="button" id="btnArEnrichAi" class="ar-btn-enrich" title="Analisis visual mendalam dengan Gemini Vision">
+          ✨ Detail AI
+        </button>
+      </div>
+    `;
+
+    // Pasang listener pada tombol Detail AI mikro
+    const btnEnrich = cardEl.querySelector('#btnArEnrichAi');
+    if (btnEnrich) {
+      btnEnrich.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+
+        // Trigger aksi analisis AI di sistem Cockpit
+        const btnLlm = document.getElementById('btnLlmAnalyze');
+        if (btnLlm) {
+          btnLlm.click();
+        } else if (window.BenggalaCockpit && typeof window.BenggalaCockpit.openPanel === 'function') {
+          window.BenggalaCockpit.openPanel('ai');
+        }
+
+        // Buka panel AI jika belum terbuka
+        const aiPanel = document.getElementById('panelAi');
+        if (aiPanel && aiPanel.hidden && window.BenggalaCockpit && typeof window.BenggalaCockpit.openPanel === 'function') {
+          window.BenggalaCockpit.openPanel('ai');
+        }
+      });
+    }
+  }
+
+  /**
+   * Menghitung posisi bounding box dalam koordinat layar aktual (CSS Pixels)
+   * menggunakan getBoundingClientRect() pada overlay canvas
+   */
+  function computeScreenBBox(bbox, canvasEl) {
+    if (!bbox || !canvasEl) return null;
+    const canvasRect = canvasEl.getBoundingClientRect();
+    const scaleX = canvasRect.width / (canvasEl.width || 1);
+    const scaleY = canvasRect.height / (canvasEl.height || 1);
+
+    return {
+      x: canvasRect.left + (bbox[0] * scaleX),
+      y: canvasRect.top + (bbox[1] * scaleY),
+      w: bbox[2] * scaleX,
+      h: bbox[3] * scaleY
+    };
+  }
+
+  /**
+   * Fungsi Utama: Update posisi dan konten AR Callout pada tiap frame
+   * @param {Object} primaryPrediction Prediksi objek prioritas utama
+   * @param {HTMLCanvasElement} canvasEl Elemen canvas overlay kamera
+   * @param {Object} options Opsi tambahan { dimensionsText, isLocked }
+   */
+  function update(primaryPrediction, canvasEl, options = {}) {
+    const now = performance.now();
+
+    if (!initElements()) return;
+
+    if (!primaryPrediction || !primaryPrediction.bbox || !canvasEl) {
+      // Mekanisme anti-flicker: tunda hide selama HIDE_TIMEOUT_MS
+      if (isCardVisible && (now - lastSeenTime > HIDE_TIMEOUT_MS)) {
+        hide();
+      }
+      return;
+    }
+
+    lastSeenTime = now;
+    activePredictionRef = primaryPrediction;
+    currentOptions = options;
+
+    const layerRect = layerEl.getBoundingClientRect();
+    if (layerRect.width <= 0 || layerRect.height <= 0) return;
+
+    // 1. Konversi BBox ke koordinat layer layar aktual
+    const screenBox = computeScreenBBox(primaryPrediction.bbox, canvasEl);
+    if (!screenBox) return;
+
+    const box = {
+      x: screenBox.x - layerRect.left,
+      y: screenBox.y - layerRect.top,
+      w: screenBox.w,
+      h: screenBox.h
+    };
+
+    // Ambil profil objek dari modul BenggalaObjectProfiles (Task 18A)
+    let profile = null;
+    if (window.BenggalaObjectProfiles && typeof window.BenggalaObjectProfiles.getProfile === 'function') {
+      profile = window.BenggalaObjectProfiles.getProfile(primaryPrediction.class, primaryPrediction.customMeta || null);
+    } else {
+      profile = {
+        title: primaryPrediction.class,
+        category: 'OBJEK',
+        utility: 'Objek terdeteksi kamera.',
+        detail: 'Profil visual aktif.',
+        safety: 'aman',
+        safetyNote: 'Aman.',
+        source: 'LOKAL'
+      };
+    }
+
+    const themeColor = getThemeColor(profile);
+
+    // 2. Render isi konten kartu
+    renderCardContent(primaryPrediction, profile, options.dimensionsText, themeColor, options.isLocked);
+
+    // Ambil ukuran kartu untuk kalkulasi penempatan presisi
+    cardEl.classList.remove('hidden');
+    isCardVisible = true;
+
+    const cardWidth = cardEl.offsetWidth || 210;
+    const cardHeight = cardEl.offsetHeight || 135;
+
+    // 3. Penempatan Cerdas di Luar Kotak (Kanan -> Kiri -> Atas -> Bawah)
+    const rightSpace = layerRect.width - (box.x + box.w);
+    const leftSpace = box.x;
+    let targetX = 0;
+    let targetY = 0;
+    let side = 'right';
+
+    if (rightSpace >= cardWidth + 24) {
+      // Cukup ruang di Kanan
+      targetX = box.x + box.w + 18;
+      targetY = box.y + (box.h - cardHeight) * 0.5;
+      side = 'right';
+    } else if (leftSpace >= cardWidth + 24) {
+      // Cukup ruang di Kiri
+      targetX = box.x - cardWidth - 18;
+      targetY = box.y + (box.h - cardHeight) * 0.5;
+      side = 'left';
+    } else {
+      // Kiri dan kanan sempit (objek lebar di HP portrait), tempatkan di Atas / Bawah
+      const topSpace = box.y - SAFE_HEADER_TOP;
+      if (topSpace >= cardHeight + 16) {
+        targetX = box.x + (box.w - cardWidth) * 0.5;
+        targetY = box.y - cardHeight - 16;
+        side = 'top';
+      } else {
+        targetX = box.x + (box.w - cardWidth) * 0.5;
+        targetY = box.y + box.h + 16;
+        side = 'bottom';
+      }
+    }
+
+    // 4. Clamping Posisi Aman (Anti-Menabrak Header & Dock)
+    const minSafeX = 8;
+    const maxSafeX = Math.max(minSafeX, layerRect.width - cardWidth - 8);
+    const minSafeY = SAFE_HEADER_TOP;
+    const maxSafeY = Math.max(minSafeY, layerRect.height - cardHeight - SAFE_DOCK_BOTTOM);
+
+    targetX = Math.max(minSafeX, Math.min(maxSafeX, targetX));
+    targetY = Math.max(minSafeY, Math.min(maxSafeY, targetY));
+
+    // 5. Lerp Smoothing Interpolation (0.22) untuk pergerakan kartu meluncur halus
+    if (currentX === null || currentY === null) {
+      currentX = targetX;
+      currentY = targetY;
+    } else {
+      currentX += (targetX - currentX) * LERP_FACTOR;
+      currentY += (targetY - currentY) * LERP_FACTOR;
+    }
+
+    // Terapkan posisi dengan transformasi GPU 60 FPS
+    cardEl.style.transform = `translate3d(${currentX.toFixed(1)}px, ${currentY.toFixed(1)}px, 0)`;
+
+    // 6. Gambar Garis Konektor SVG Menghubungkan BBox dan Kartu
+    renderConnectorLine(box, { x: currentX, y: currentY, w: cardWidth, h: cardHeight }, side, themeColor);
+  }
+
+  // =========================================================================
+  // Expose API Global
+  // =========================================================================
+  window.BenggalaArCallout = {
+    update,
+    hide,
+    isVisible: () => isCardVisible,
+    getTarget: () => activePredictionRef
+  };
+
+})();
