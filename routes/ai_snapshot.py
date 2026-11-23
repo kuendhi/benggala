@@ -328,69 +328,88 @@ def save_snapshot():
     Menyimpan snapshot foto dari webcam (Base64), memverifikasi integritas gambar via Pillow,
     menyimpan ke uploads/snapshots/, dan mencatat record ke detection_logs.
     """
-    payload = request.get_json(silent=True) or {}
-    raw_img = str(payload.get('image') or '').strip()
+    # 1. Path Absolut Direktori Penyimpanan
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    snapshot_dir = os.path.join(base_dir, 'uploads', 'snapshots')
+    os.makedirs(snapshot_dir, exist_ok=True)
 
-    if not raw_img:
+    # 2. Payload & Ekstraksi Base64 Defensif
+    data = request.get_json(silent=True) or {}
+    raw_image = str(data.get('image') or data.get('image_data') or data.get('snapshot') or '').strip()
+
+    if not raw_image:
+        current_app.logger.warning("Snapshot save failed: payload missing image data")
         return jsonify({
             "status": "error",
+            "error_stage": "payload",
             "message": "Data gambar (Base64) wajib disertakan."
         }), 400
 
-    # Ekstrak data base64 jika menggunakan data URI scheme
-    if ',' in raw_img:
-        prefix, b64_str = raw_img.split(',', 1)
-        if not re.match(r'^data:image\/(jpeg|jpg|png|webp);base64', prefix, re.IGNORECASE):
-            return jsonify({
-                "status": "error",
-                "message": "Prefix skema gambar tidak valid."
-            }), 400
-    else:
-        b64_str = raw_img
+    clean_b64 = re.sub(r'^data:image/[^;]+;base64,', '', raw_image, flags=re.IGNORECASE).strip()
+    missing_padding = len(clean_b64) % 4
+    if missing_padding:
+        clean_b64 += '=' * (4 - missing_padding)
 
     try:
-        img_bytes = base64.b64decode(b64_str)
+        img_bytes = base64.b64decode(clean_b64)
     except Exception:
+        current_app.logger.exception("Snapshot save failed: base64 decode error")
         return jsonify({
             "status": "error",
+            "error_stage": "payload",
             "message": "Format Base64 gambar tidak valid."
         }), 400
 
-    # Batasi ukuran maksimal 2 MB
-    if len(img_bytes) > 2 * 1024 * 1024:
+    if len(img_bytes) > 10 * 1024 * 1024:
+        current_app.logger.warning("Snapshot save failed: image exceeds 10MB limit")
         return jsonify({
             "status": "error",
-            "message": "Ukuran gambar melebihi batas maksimal 2MB."
+            "error_stage": "payload",
+            "message": "Ukuran gambar melebihi batas maksimal 10MB."
         }), 413
 
-    # Verifikasi integritas gambar via Pillow (mencegah payload berbahaya)
+    # 3. Anti-Crash Pillow (Verifikasi + Buka Ulang + Konversi RGB + Resize Maks 1280x1280)
     try:
         with Image.open(io.BytesIO(img_bytes)) as test_img:
             test_img.verify()
     except Exception:
+        current_app.logger.exception("Snapshot save failed: pillow verify error")
         return jsonify({
             "status": "error",
+            "error_stage": "pillow",
             "message": "Data yang dikirim bukan format gambar yang valid."
         }), 400
 
-    # Buka kembali untuk konversi ke JPEG teroptimasi
     try:
-        with Image.open(io.BytesIO(img_bytes)) as pil_img:
-            rgb_img = pil_img.convert('RGB')
-            now_str = datetime.now().strftime('%Y%m%d_%H%M%S')
-            hex_suffix = secrets.token_hex(2)
-            filename = f"snap_{now_str}_{hex_suffix}.jpg"
-            target_path = os.path.join(SNAPSHOTS_DIR, filename)
-            rgb_img.save(target_path, 'JPEG', quality=85)
-    except Exception as e:
-        current_app.logger.error(f"Error saving image: {e}")
+        img = Image.open(io.BytesIO(img_bytes))
+        img = img.convert('RGB')
+        resample_filter = getattr(Image, 'Resampling', Image).LANCZOS
+        img.thumbnail((1280, 1280), resample_filter)
+    except Exception:
+        current_app.logger.exception("Snapshot save failed: pillow process/convert error")
         return jsonify({
             "status": "error",
-            "message": "Gagal menyimpan berkas gambar ke penyimpanan server."
+            "error_stage": "pillow",
+            "message": "Gagal memproses gambar melalui engine Pillow."
+        }), 400
+
+    # 4. Penyimpanan Berkas Gambar ke Disk
+    try:
+        now_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+        hex_suffix = secrets.token_hex(2)
+        filename = f"snap_{now_str}_{hex_suffix}.jpg"
+        target_path = os.path.join(snapshot_dir, filename)
+        img.save(target_path, 'JPEG', quality=84)
+    except Exception:
+        current_app.logger.exception("Snapshot save failed: disk write error")
+        return jsonify({
+            "status": "error",
+            "error_stage": "disk",
+            "message": "Gagal menyimpan berkas gambar ke disk."
         }), 500
 
-    # Parsing data objek terdeteksi
-    objects_data = payload.get('objects') or payload.get('object_name') or []
+    # 5. Parsing Data Objek & Integrasi Notifikasi Telegram (jika mode CCTV)
+    objects_data = data.get('objects') or data.get('object_name') or data.get('detected_objects') or []
     if isinstance(objects_data, list):
         objects_str = json.dumps(objects_data, ensure_ascii=False)
         object_count = len(objects_data)
@@ -398,14 +417,19 @@ def save_snapshot():
         objects_str = objects_data.strip()
         object_count = 1
     else:
-        objects_str = ""
+        objects_str = "[]"
         object_count = 0
 
-    is_cctv = bool(payload.get('is_cctv'))
-    ai_provider = payload.get('ai_provider')
-    ai_analysis = payload.get('ai_analysis')
+    confidence_val = data.get('confidence')
+    try:
+        confidence_val = float(confidence_val) if confidence_val is not None else 0.0
+    except (ValueError, TypeError):
+        confidence_val = 0.0
 
-    # Integrasi Notifikasi Telegram jika mode CCTV
+    is_cctv = bool(data.get('is_cctv'))
+    ai_provider = data.get('ai_provider') or data.get('provider')
+    ai_analysis = data.get('ai_analysis') or data.get('analysis')
+
     telegram_sent = False
     try:
         settings = get_all_settings()
@@ -420,22 +444,52 @@ def save_snapshot():
     except Exception as tg_err:
         current_app.logger.warning(f"Telegram auto-send error: {tg_err}")
 
-    # Catat ke detection_logs
-    sql = """
-        INSERT INTO detection_logs (filename, file_path, detected_objects, object_count, is_cctv, telegram_sent, ai_provider, analysis_result)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-    """
+    # 6. Kecocokan Kolom MySQL Dinamis & Pencatatan ke Database
     rel_path = f"uploads/snapshots/{filename}"
-    log_id = db_execute(sql, (
-        filename,
-        rel_path,
-        objects_str,
-        object_count,
-        1 if is_cctv else 0,
-        1 if telegram_sent else 0,
-        ai_provider or None,
-        ai_analysis or None
-    ))
+    try:
+        actual_cols = set()
+        try:
+            cols_raw = db_fetch_all("SHOW COLUMNS FROM detection_logs")
+            if cols_raw:
+                actual_cols = {col['Field'] for col in cols_raw if 'Field' in col}
+        except Exception as col_err:
+            current_app.logger.warning(f"Failed to inspect detection_logs columns: {col_err}")
+
+        candidate_map = {
+            'filename': filename,
+            'file_path': rel_path,
+            'detected_objects': objects_str,
+            'objects_json': objects_str,
+            'object_count': object_count,
+            'confidence': confidence_val,
+            'is_cctv': 1 if is_cctv else 0,
+            'telegram_sent': 1 if telegram_sent else 0,
+            'ai_provider': ai_provider or None,
+            'analysis_result': ai_analysis or None,
+            'llm_provider': ai_provider or None,
+            'llm_analysis': ai_analysis or None
+        }
+
+        if actual_cols:
+            insert_cols = [col for col in candidate_map if col in actual_cols]
+        else:
+            insert_cols = ['filename', 'file_path', 'detected_objects', 'object_count']
+
+        if not insert_cols:
+            insert_cols = ['filename']
+
+        col_names = ", ".join(insert_cols)
+        placeholders = ", ".join(["%s"] * len(insert_cols))
+        sql = f"INSERT INTO detection_logs ({col_names}) VALUES ({placeholders})"
+        values = tuple(candidate_map[col] for col in insert_cols)
+        log_id = db_execute(sql, values)
+    except Exception:
+        current_app.logger.exception("Snapshot save failed: database insert error")
+        return jsonify({
+            "status": "error",
+            "error_stage": "database",
+            "message": "Gagal mencatat data snapshot ke database."
+        }), 500
 
     is_php_path = request.path.endswith('.php')
     status_str = "success" if is_php_path else "ok"
