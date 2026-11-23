@@ -73,10 +73,9 @@
         <span id="missionClock" class="mission-clock">T+ 00:00:00</span>
       </div>
 
-      <!-- Kanan: Tombol Cepat (Visi 2027, Mode Tenang, Mode Darurat, Settings, Install PWA) -->
+      <!-- Kanan: Tombol Cepat (Latih Objek, Mode Tenang, Mode Darurat, Settings, Install PWA) -->
       <div class="hud-header-right">
-        <button type="button" id="btnRoadmap" class="hud-btn-accent" title="Visi Pengembangan 2027">📡 VISI 2027</button>
-        <button type="button" id="btnOpenKnowledgeHeader" class="hud-btn hud-btn-knowledge" title="Koreksi & Latih Objek (MobileNet + KNN)">🎯 LATIH</button>
+        <button type="button" id="btnOpenKnowledgeHeader" class="hud-btn hud-btn-knowledge" title="Koreksi & Latih Objek (MobileNet + KNN)">🎯</button>
         <button type="button" id="btnQuietMode" class="hud-btn" title="Toggle Mode Tenang (Sembunyikan HUD)">
           🌙
         </button>
@@ -600,6 +599,7 @@
 
     <!-- Kontrol Smooth Zoom, Kecerahan, Framing & Orientasi Layar Melayang (.hud-zoom-control) -->
     <div class="hud-zoom-control" id="hudZoomControl">
+      <button type="button" id="btnRoadmapZoom" class="btn-zoom-step btn-roadmap-zoom" title="📡 Presentasi Visi Pengembangan 2027" style="color: #FFD54F; border-color: rgba(255, 171, 0, 0.45); background: rgba(255, 171, 0, 0.15);">📡</button>
       <button type="button" id="btnBrightnessBoost" class="btn-zoom-step" title="Kecerahan Layar Instan (Klik untuk ganti 110% / 125% / 145%)">☀️</button>
       <button type="button" id="btnOrientation" class="btn-zoom-step" title="Orientasi Layar: Portrait (9:16) / Widescreen (16:9) / Auto">📱</button>
       <button type="button" id="btnDisplayMode" class="btn-zoom-step" title="Mode Framing: Proporsional (Fit) / Layar Penuh (Fill)">⛶</button>
@@ -635,6 +635,10 @@
       <button type="button" class="dock-btn" data-target="sistem" title="Pengaturan Sistem">
         <span class="dock-icon">⚙️</span>
         <span class="dock-label">Sistem</span>
+      </button>
+      <button type="button" class="dock-btn dock-btn-roadmap" id="btnRoadmap" title="Presentasi Visi Pengembangan 2027">
+        <span class="dock-icon">📡</span>
+        <span class="dock-label">Visi 2027</span>
       </button>
     </nav>
 

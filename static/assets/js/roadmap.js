@@ -432,6 +432,9 @@
      * Tampilkan overlay mode transmisi taktis
      */
     open: function () {
+      if (window.BenggalaCockpit && typeof window.BenggalaCockpit.closeAllPanels === 'function') {
+        window.BenggalaCockpit.closeAllPanels();
+      }
       const overlay = document.getElementById('roadmapOverlay');
       if (overlay) {
         overlay.style.display = 'flex';
@@ -587,6 +590,13 @@
     const btnRoadmap = document.getElementById('btnRoadmap');
     if (btnRoadmap) {
       btnRoadmap.addEventListener('click', () => {
+        BenggalaRoadmap.open();
+      });
+    }
+
+    const btnRoadmapZoom = document.getElementById('btnRoadmapZoom');
+    if (btnRoadmapZoom) {
+      btnRoadmapZoom.addEventListener('click', () => {
         BenggalaRoadmap.open();
       });
     }

@@ -2010,34 +2010,17 @@ body.mode-emergency .mission-status-badge {
     flex-shrink: 0 !important;
   }
 
-  /* Tombol 📡 VISI 2027: Selalu Menonjol, Utuh dan Mudah Diklik di Layar HP */
-  .hud-btn-accent, #btnRoadmap {
-    height: 30px;
-    padding: 0 8px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    white-space: nowrap;
-    flex-shrink: 0 !important;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: linear-gradient(135deg, rgba(255, 171, 0, 0.35), rgba(255, 109, 0, 0.5));
-    border: 1px solid #FFD54F;
-    box-shadow: 0 0 10px rgba(255, 171, 0, 0.5);
-  }
-
-  /* Tombol 🎯 LATIH: Tampil Utuh & Proporsional di Bar Tombol HP */
+  /* Tombol 🎯 Latih (Icon Saja di Header Layar HP) */
   .hud-btn-knowledge, #btnOpenKnowledgeHeader {
-    width: auto !important;
-    height: 30px;
-    padding: 0 8px;
-    font-size: 0.72rem;
-    font-weight: 700;
+    width: 28px !important;
+    height: 28px !important;
+    padding: 0 !important;
+    font-size: 0.85rem !important;
     white-space: nowrap;
     flex-shrink: 0 !important;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    justify-content: center;
   }
 
   .hud-btn {
@@ -2145,18 +2128,18 @@ body.mode-emergency .mission-status-badge {
     width: 65px;
   }
 
-  /* Dock Kapsul Super Rapat: 6 Tombol Pas dalam 1 Baris */
+  /* Dock Kapsul Super Rapat: 7 Tombol Pas dalam 1 Baris */
   .cockpit-dock {
     bottom: 10px;
-    width: calc(100vw - 12px);
-    max-width: calc(100vw - 12px);
-    padding: 4px 6px;
-    gap: 3px;
+    width: calc(100vw - 8px);
+    max-width: calc(100vw - 8px);
+    padding: 4px 4px;
+    gap: 2px;
     justify-content: space-around;
   }
 
   .dock-btn {
-    padding: 5px 4px;
+    padding: 5px 2px;
     flex: 1;
     min-width: 0;
     justify-content: center;
@@ -2165,12 +2148,13 @@ body.mode-emergency .mission-status-badge {
   }
 
   .dock-icon {
-    font-size: 0.95rem;
+    font-size: 0.90rem;
+    line-height: 1;
   }
 
   .dock-label {
-    font-size: 9.5px;
-    letter-spacing: 0;
+    font-size: 8.5px;
+    letter-spacing: -0.2px;
   }
 
   .btn-mission {
@@ -2495,19 +2479,16 @@ body.mode-emergency .mission-status-badge {
   background: rgba(251, 191, 36, 0.15);
   border: 1px solid rgba(251, 191, 36, 0.5);
   color: #fbbf24;
-  font-family: var(--font-display);
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  padding: 0 12px;
+  font-size: 1rem;
+  width: 36px;
   height: 36px;
+  padding: 0;
   border-radius: var(--radius-sm);
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
   cursor: pointer;
   transition: all 0.25s ease;
-  white-space: nowrap;
 }
 
 .hud-btn-knowledge:hover {
@@ -2516,6 +2497,26 @@ body.mode-emergency .mission-status-badge {
   color: #fff;
   box-shadow: 0 0 14px rgba(251, 191, 36, 0.5);
   transform: translateY(-1px);
+}
+
+/* Tombol Dock: Visi 2027 (.dock-btn-roadmap) */
+.dock-btn-roadmap {
+  border-color: rgba(255, 171, 0, 0.45);
+  background: linear-gradient(135deg, rgba(255, 171, 0, 0.12), rgba(255, 109, 0, 0.22));
+  color: #FFD54F;
+}
+
+.dock-btn-roadmap:hover {
+  border-color: #FFD54F;
+  background: linear-gradient(135deg, rgba(255, 171, 0, 0.35), rgba(255, 109, 0, 0.5));
+  color: #FFFFFF;
+  box-shadow: 0 0 16px rgba(255, 171, 0, 0.6);
+  transform: translateY(-2px);
+}
+
+.dock-btn-roadmap .dock-label {
+  color: #FFD54F;
+  font-weight: 700;
 }
 
 /* Overlay Transmisi Taktis (Kamera & AI tetap jalan di belakang) */
