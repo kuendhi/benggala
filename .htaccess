@@ -2,9 +2,6 @@
 # Benggala Server Hardening (.htaccess)
 # ==============================================================================
 
-# 0. Prioritaskan Phusion Passenger daripada legacy index.php
-DirectoryIndex passenger_wsgi.py index.html
-
 # 1. Matikan Directory Listing
 Options -Indexes
 

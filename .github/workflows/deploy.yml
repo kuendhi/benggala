@@ -44,3 +44,37 @@ jobs:
             **/*.pyc
             **/uploads/snapshots/*.jpg
             **/uploads/knowledge/*.jpg
+
+      - name: Clean Legacy PHP Files from FTP Server
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+        run: |
+          python -c "
+          import ftplib, os
+          server = os.environ.get('FTP_SERVER')
+          user = os.environ.get('FTP_USERNAME')
+          passwd = os.environ.get('FTP_PASSWORD')
+          remotedir = os.environ.get('FTP_SERVER_DIR', '').strip('/')
+          if server and user and passwd:
+              try:
+                  ftp = ftplib.FTP(server, timeout=30)
+                  ftp.login(user, passwd)
+                  if remotedir:
+                      for d in remotedir.split('/'):
+                          if d:
+                              ftp.cwd(d)
+                  legacy_files = ['index.php', 'save_snapshot.php', 'analyze_llm.php', 'settings.php', 'history.php', 'export_csv.php', 'db.php', 'security.php', 'telegram.php']
+                  for f in legacy_files:
+                      try:
+                          ftp.delete(f)
+                          print(f'Successfully deleted legacy {f} from FTP')
+                      except Exception as e:
+                          print(f'File {f} not present or skipped: {e}')
+                  ftp.quit()
+              except Exception as e:
+                  print('FTP cleanup warning:', e)
+          "
+
