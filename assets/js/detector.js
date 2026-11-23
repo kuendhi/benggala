@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /**
    * Mengonversi koordinat client (layar) ke koordinat internal canvas (0..canvas.width, 0..canvas.height)
-   * dengan memperhitungkan penyesuaian object-fit: cover dan rasio aspek panggung kamera (Widescreen/Portrait).
+   * dengan memperhitungkan penyesuaian object-fit (contain vs cover) dan panggung kamera.
    */
   function clientToCanvasCoords(clientX, clientY) {
     if (!overlay || !video || !video.videoWidth || !video.videoHeight) {
@@ -213,26 +213,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let scale, offsetX = 0, offsetY = 0;
 
-    if (boxAspect > srcAspect) {
-      scale = boxW / srcW;
+    if (cameraDisplayMode === 'fit') {
+      // MODE FIT (object-fit: contain): Skala ditentukan oleh dimensi terkecil agar tidak terpotong
+      scale = Math.min(boxW / srcW, boxH / srcH);
+      const renderedW = srcW * scale;
       const renderedH = srcH * scale;
-      offsetY = (renderedH - boxH) / 2;
-      const relX = clientX - rect.left;
-      const relY = (clientY - rect.top) + offsetY;
+      offsetX = (boxW - renderedW) / 2;
+      offsetY = (boxH - renderedH) / 2;
+
+      const relX = clientX - rect.left - offsetX;
+      const relY = clientY - rect.top - offsetY;
+
       return {
-        x: relX / scale,
-        y: relY / scale
+        x: Math.max(0, Math.min(srcW, relX / scale)),
+        y: Math.max(0, Math.min(srcH, relY / scale))
       };
     } else {
-      scale = boxH / srcH;
-      const renderedW = srcW * scale;
-      offsetX = (renderedW - boxW) / 2;
-      const relX = (clientX - rect.left) + offsetX;
-      const relY = clientY - rect.top;
-      return {
-        x: relX / scale,
-        y: relY / scale
-      };
+      // MODE FILL (object-fit: cover): Skala ditentukan oleh dimensi terbesar untuk penuhi layar
+      if (boxAspect > srcAspect) {
+        scale = boxW / srcW;
+        const renderedH = srcH * scale;
+        offsetY = (renderedH - boxH) / 2;
+        const relX = clientX - rect.left;
+        const relY = (clientY - rect.top) + offsetY;
+        return {
+          x: Math.max(0, Math.min(srcW, relX / scale)),
+          y: Math.max(0, Math.min(srcH, relY / scale))
+        };
+      } else {
+        scale = boxH / srcH;
+        const renderedW = srcW * scale;
+        offsetX = (renderedW - boxW) / 2;
+        const relX = (clientX - rect.left) + offsetX;
+        const relY = clientY - rect.top;
+        return {
+          x: Math.max(0, Math.min(srcW, relX / scale)),
+          y: Math.max(0, Math.min(srcH, relY / scale))
+        };
+      }
     }
   }
 
@@ -259,22 +277,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let scale, offsetX = 0, offsetY = 0;
 
-    if (boxAspect > srcAspect) {
-      scale = boxW / srcW;
+    if (cameraDisplayMode === 'fit') {
+      // MODE FIT (object-fit: contain)
+      scale = Math.min(boxW / srcW, boxH / srcH);
+      const renderedW = srcW * scale;
       const renderedH = srcH * scale;
-      offsetY = (renderedH - boxH) / 2;
+      offsetX = (boxW - renderedW) / 2;
+      offsetY = (boxH - renderedH) / 2;
+
       return {
-        x: rect.left + canvasX * scale,
-        y: rect.top + canvasY * scale - offsetY
+        x: rect.left + offsetX + (canvasX * scale),
+        y: rect.top + offsetY + (canvasY * scale)
       };
     } else {
-      scale = boxH / srcH;
-      const renderedW = srcW * scale;
-      offsetX = (renderedW - boxW) / 2;
-      return {
-        x: rect.left + canvasX * scale - offsetX,
-        y: rect.top + canvasY * scale
-      };
+      // MODE FILL (object-fit: cover)
+      if (boxAspect > srcAspect) {
+        scale = boxW / srcW;
+        const renderedH = srcH * scale;
+        offsetY = (renderedH - boxH) / 2;
+        return {
+          x: rect.left + canvasX * scale,
+          y: rect.top + canvasY * scale - offsetY
+        };
+      } else {
+        scale = boxH / srcH;
+        const renderedW = srcW * scale;
+        offsetX = (renderedW - boxW) / 2;
+        return {
+          x: rect.left + canvasX * scale - offsetX,
+          y: rect.top + canvasY * scale
+        };
+      }
     }
   }
 
@@ -604,7 +637,8 @@ document.addEventListener('DOMContentLoaded', () => {
     cameraError.style.display = 'none';
   }
 
-  let cameraOrientation = localStorage.getItem('benggala_cam_orientation') || 'widescreen'; // 'widescreen' (16:9) | 'portrait' (9:16) | 'auto'
+  let cameraOrientation = localStorage.getItem('benggala_cam_orientation') || 'portrait'; // 'portrait' (9:16) default | 'widescreen' (16:9) | 'auto'
+  let cameraDisplayMode = localStorage.getItem('benggala_cam_display_mode') || 'fit'; // 'fit' (proporsional tanpa potong) | 'fill' (layar penuh)
 
   function syncCanvasDimensions() {
     if (!video || !canvas) return;
@@ -615,7 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.height = video.videoHeight;
       }
 
-      // Maksimalkan dimensi tampilan cameraStage sesuai orientasi (Widescreen 16:9 / Portrait 9:16 / Auto)
+      // Maksimalkan dimensi tampilan cameraStage sesuai orientasi & perangkat
       const container = document.getElementById('cameraContainer');
       const stage = document.getElementById('cameraStage');
       if (container && stage) {
@@ -625,47 +659,78 @@ document.addEventListener('DOMContentLoaded', () => {
         if (contW > 0 && contH > 0) {
           const videoAspect = video.videoWidth / video.videoHeight;
           const contAspect = contW / contH;
+          const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                                 (('ontouchstart' in window || navigator.maxTouchPoints > 0) && Math.max(window.innerWidth, window.innerHeight) <= 1024);
 
           let targetW, targetH;
 
-          if (cameraOrientation === 'widescreen') {
-            // Mode Widescreen (16:9 Landscape): Maksimalkan layar PC secara horizontal & vertikal
-            const wideAspect = 16 / 9; // 1.7778
-            stage.classList.remove('is-portrait');
-            stage.classList.add('is-widescreen');
-
-            if (contAspect >= wideAspect) {
-              // Monitor PC Widescreen / Ultrawide: Penuhi seluruh tinggi & lebar monitor penuh
-              targetH = contH;
-              targetW = Math.max(contW, contH * wideAspect);
-            } else {
-              targetW = contW;
-              targetH = contW / wideAspect;
-            }
-          } else if (cameraOrientation === 'portrait') {
-            // Mode Portrait (9:16 Tegak): Maksimalkan tinggi monitor PC dengan rasio tegak di tengah
-            const portAspect = 9 / 16; // 0.5625
-            stage.classList.remove('is-widescreen');
-            stage.classList.add('is-portrait');
-
-            if (contAspect <= portAspect) {
-              // Di HP: Penuhi seluruh lebar & tinggi HP
-              targetW = contW;
-              targetH = contH;
-            } else {
-              // Di PC: Tinggi 100% monitor, lebar proporsional 9:16 di tengah
-              targetH = contH;
-              targetW = Math.round(contH * portAspect);
-            }
+          // Sinkronisasi kelas CSS mode framing (Fit / Fill)
+          if (cameraDisplayMode === 'fit') {
+            stage.classList.add('is-fit');
+            stage.classList.remove('is-fill');
           } else {
-            // Mode Auto: Mengikuti rasio asli sensor kamera
-            stage.classList.remove('is-widescreen', 'is-portrait');
-            if (contAspect > videoAspect) {
-              targetH = contH;
-              targetW = contH * videoAspect;
+            stage.classList.add('is-fill');
+            stage.classList.remove('is-fit');
+          }
+
+          if (isMobileDevice) {
+            // ===================================================================
+            // MODE HP / MOBILE: Responsif Penuh & Halus Saat Layar Diputar-putar
+            // ===================================================================
+            stage.classList.remove('is-widescreen');
+            if (contW <= contH) {
+              // HP posisi tegak (Portrait)
+              stage.classList.add('is-portrait');
             } else {
-              targetW = contW;
-              targetH = contW / videoAspect;
+              // HP posisi miring/tidur (Landscape)
+              stage.classList.remove('is-portrait');
+            }
+            // Penuhi layar HP secara dinamis tanpa bar kosong
+            targetW = contW;
+            targetH = contH;
+          } else {
+            // ===================================================================
+            // MODE PC: Proporsional & Tetap Portrait Memenuhi Screen
+            // ===================================================================
+            if (cameraOrientation === 'portrait') {
+              // Tampilan Portrait Taktis di PC: Tinggi penuhi monitor (100% contH)
+              stage.classList.remove('is-widescreen');
+              stage.classList.add('is-portrait');
+
+              targetH = contH;
+
+              // Lebar proporsional portrait di monitor PC:
+              // Jika sensor asli sudah portrait (kamera vertikal), ikuti rasio sensornya.
+              // Jika webcam PC horizontal (4:3 atau 16:9), buat bingkai portrait 9:16 yang elegan & proporsional
+              if (videoAspect < 1.0) {
+                targetW = Math.round(contH * videoAspect);
+              } else {
+                const portAspect = 9 / 16; // 0.5625
+                targetW = Math.min(contW, Math.round(contH * portAspect));
+              }
+            } else if (cameraOrientation === 'widescreen') {
+              // Mode Widescreen (16:9 Landscape) di PC
+              const wideAspect = 16 / 9; // 1.7778
+              stage.classList.remove('is-portrait');
+              stage.classList.add('is-widescreen');
+
+              if (contAspect >= wideAspect) {
+                targetH = contH;
+                targetW = contW;
+              } else {
+                targetW = contW;
+                targetH = contW / wideAspect;
+              }
+            } else {
+              // Mode Auto: Sesuai Rasio Sensor Asli Kamera (100% Proporsional Murni)
+              stage.classList.remove('is-widescreen', 'is-portrait');
+              if (contAspect > videoAspect) {
+                targetH = contH;
+                targetW = contH * videoAspect;
+              } else {
+                targetW = contW;
+                targetH = contW / videoAspect;
+              }
             }
           }
 
@@ -676,21 +741,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Sinkronisasi dimensi canvas pada loadedmetadata & window resize
+  // Sinkronisasi dimensi canvas pada loadedmetadata & window resize / rotasi HP
   video.addEventListener('loadedmetadata', syncCanvasDimensions);
   window.addEventListener('resize', syncCanvasDimensions);
+  window.addEventListener('orientationchange', () => {
+    setTimeout(syncCanvasDimensions, 80);
+    setTimeout(syncCanvasDimensions, 250);
+  });
+  if (screen.orientation && typeof screen.orientation.addEventListener === 'function') {
+    screen.orientation.addEventListener('change', () => {
+      setTimeout(syncCanvasDimensions, 80);
+      setTimeout(syncCanvasDimensions, 250);
+    });
+  }
 
   // =========================================================================
   // Smooth Zoom Controller (Hardware & Digital Zoom)
+  // Mendukung rentang zoom dari 0.5x (wide) hingga 3.0x (tele)
   // =========================================================================
   function applyCameraZoom(level) {
-    level = Math.max(1.0, Math.min(3.0, parseFloat(level) || 1.0));
+    level = Math.max(0.5, Math.min(3.0, parseFloat(level) || 1.0));
     currentZoom = level;
 
-    // 1. Coba Hardware Zoom jika didukung oleh video track kamera
+    // 1. Coba Hardware Zoom jika didukung oleh video track kamera (hanya untuk >= 1.0)
     let hardwareZoomSuccess = false;
     const track = stream ? stream.getVideoTracks()[0] : null;
-    if (track && typeof track.getCapabilities === 'function') {
+    if (track && typeof track.getCapabilities === 'function' && level >= 1.0) {
       try {
         const caps = track.getCapabilities();
         if (caps && 'zoom' in caps) {
@@ -711,7 +787,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // 2. Fallback Digital Smooth Zoom pada cameraStage jika tidak ada hardware zoom
+    // 2. Fallback Digital Smooth Zoom pada cameraStage jika hardware zoom tidak aktif atau level < 1.0
     if (!hardwareZoomSuccess && cameraStage) {
       cameraStage.style.transform = `scale(${level})`;
     }
@@ -1664,38 +1740,38 @@ document.addEventListener('DOMContentLoaded', () => {
   applySavedBrightness();
 
   // =========================================================================
-  // Kontrol Orientasi Layar (Widescreen 16:9 / Portrait 9:16 / Auto)
+  // Kontrol Orientasi Layar (Portrait 9:16 / Widescreen 16:9 / Auto)
   // =========================================================================
   const btnOrientation = document.getElementById('btnOrientation');
   const cameraOrientationVal = document.getElementById('cameraOrientationVal');
   const orientBtns = document.querySelectorAll('.btn-orient');
 
   const orientIcons = {
-    widescreen: '🖥️',
     portrait: '📱',
+    widescreen: '🖥️',
     auto: '🔄'
   };
 
   const orientLabels = {
-    widescreen: 'Widescreen (16:9)',
-    portrait: 'Portrait (9:16)',
-    auto: 'Auto (Sensor Asli)'
+    portrait: 'Portrait (9:16 / Tegak)',
+    widescreen: 'Widescreen (16:9 / Lebar)',
+    auto: 'Auto (Sensor Asli / Proporsional)'
   };
 
   function setCameraOrientation(mode, restartStream = false) {
-    if (!['widescreen', 'portrait', 'auto'].includes(mode)) {
-      mode = 'widescreen';
+    if (!['portrait', 'widescreen', 'auto'].includes(mode)) {
+      mode = 'portrait';
     }
     cameraOrientation = mode;
     localStorage.setItem('benggala_cam_orientation', mode);
 
     if (btnOrientation) {
-      btnOrientation.textContent = orientIcons[mode] || '🖥️';
+      btnOrientation.textContent = orientIcons[mode] || '📱';
       btnOrientation.title = `Orientasi Layar: ${orientLabels[mode]} (Klik untuk ganti)`;
     }
 
     if (cameraOrientationVal) {
-      cameraOrientationVal.textContent = orientLabels[mode] || 'Widescreen (16:9)';
+      cameraOrientationVal.textContent = orientLabels[mode] || 'Portrait (9:16 / Tegak)';
     }
 
     orientBtns.forEach(btn => {
@@ -1718,24 +1794,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Terapkan status awal orientasi
   if (btnOrientation) {
-    btnOrientation.textContent = orientIcons[cameraOrientation] || '🖥️';
+    btnOrientation.textContent = orientIcons[cameraOrientation] || '📱';
     btnOrientation.title = `Orientasi Layar: ${orientLabels[cameraOrientation]} (Klik untuk ganti)`;
 
     btnOrientation.addEventListener('click', () => {
-      let nextMode = 'widescreen';
-      if (cameraOrientation === 'widescreen') {
-        nextMode = 'portrait';
-      } else if (cameraOrientation === 'portrait') {
+      let nextMode = 'portrait';
+      if (cameraOrientation === 'portrait') {
+        nextMode = 'widescreen';
+      } else if (cameraOrientation === 'widescreen') {
         nextMode = 'auto';
       } else {
-        nextMode = 'widescreen';
+        nextMode = 'portrait';
       }
       setCameraOrientation(nextMode, false);
     });
   }
 
   if (cameraOrientationVal) {
-    cameraOrientationVal.textContent = orientLabels[cameraOrientation] || 'Widescreen (16:9)';
+    cameraOrientationVal.textContent = orientLabels[cameraOrientation] || 'Portrait (9:16 / Tegak)';
   }
 
   orientBtns.forEach(btn => {
@@ -1754,6 +1830,74 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // =========================================================================
+  // Kontrol Mode Framing Layar (Proporsional Fit vs Layar Penuh Fill)
+  // =========================================================================
+  const btnDisplayMode = document.getElementById('btnDisplayMode');
+  const cameraDisplayModeVal = document.getElementById('cameraDisplayModeVal');
+  const displayModeBtns = document.querySelectorAll('.btn-display-mode');
+
+  function setCameraDisplayMode(mode) {
+    if (!['fit', 'fill'].includes(mode)) {
+      mode = 'fit';
+    }
+    cameraDisplayMode = mode;
+    localStorage.setItem('benggala_cam_display_mode', mode);
+
+    if (btnDisplayMode) {
+      btnDisplayMode.textContent = (mode === 'fit') ? '⛶' : '🔲';
+      btnDisplayMode.title = (mode === 'fit')
+        ? 'Mode Framing: Proporsional (Fit) • Seluruh gambar utuh tanpa terpotong (Klik untuk Layar Penuh)'
+        : 'Mode Framing: Layar Penuh (Fill) • Mengisi seluruh area panggung (Klik untuk Proporsional)';
+    }
+
+    if (cameraDisplayModeVal) {
+      cameraDisplayModeVal.textContent = (mode === 'fit') ? 'Proporsional (Fit)' : 'Layar Penuh (Fill)';
+    }
+
+    displayModeBtns.forEach(btn => {
+      if (btn.getAttribute('data-mode') === mode) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+
+    syncCanvasDimensions();
+    showToast(`🖼️ Framing: ${(mode === 'fit' ? 'Proporsional (Fit)' : 'Layar Penuh (Fill)')}`, 'info');
+  }
+
+  if (btnDisplayMode) {
+    btnDisplayMode.textContent = (cameraDisplayMode === 'fit') ? '⛶' : '🔲';
+    btnDisplayMode.title = (cameraDisplayMode === 'fit')
+      ? 'Mode Framing: Proporsional (Fit) • Seluruh gambar utuh tanpa terpotong (Klik untuk Layar Penuh)'
+      : 'Mode Framing: Layar Penuh (Fill) • Mengisi seluruh area panggung (Klik untuk Proporsional)';
+
+    btnDisplayMode.addEventListener('click', () => {
+      const nextMode = (cameraDisplayMode === 'fit') ? 'fill' : 'fit';
+      setCameraDisplayMode(nextMode);
+    });
+  }
+
+  if (cameraDisplayModeVal) {
+    cameraDisplayModeVal.textContent = (cameraDisplayMode === 'fit') ? 'Proporsional (Fit)' : 'Layar Penuh (Fill)';
+  }
+
+  displayModeBtns.forEach(btn => {
+    if (btn.getAttribute('data-mode') === cameraDisplayMode) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+
+    btn.addEventListener('click', () => {
+      const mode = btn.getAttribute('data-mode');
+      if (mode) {
+        setCameraDisplayMode(mode);
+      }
+    });
+  });
+
+  // =========================================================================
   // Event Listeners Smooth Zoom (Slider, Tombol Step, Mouse Wheel, Touch Pinch)
   // =========================================================================
   if (zoomSlider) {
@@ -1764,13 +1908,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnZoomIn) {
     btnZoomIn.addEventListener('click', () => {
-      applyCameraZoom(currentZoom + 0.2);
+      applyCameraZoom(currentZoom + 0.1);
     });
   }
 
   if (btnZoomOut) {
     btnZoomOut.addEventListener('click', () => {
-      applyCameraZoom(currentZoom - 0.2);
+      applyCameraZoom(currentZoom - 0.1);
     });
   }
 
