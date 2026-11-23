@@ -1616,38 +1616,47 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
-  // 6. Tangkap Frame Gabungan Video + Canvas Bounding Box
+  // 6. Tangkap Frame Gabungan Video + Canvas Bounding Box (Kompresi Ringan <= 960px)
   // =========================================================================
   function captureMergedSnapshot() {
     if (!isStreaming || !video.videoWidth || !video.videoHeight) {
       return null;
     }
 
+    const maxW = 960;
+    let targetW = video.videoWidth;
+    let targetH = video.videoHeight;
+
+    if (targetW > maxW) {
+      targetH = Math.round((targetH * maxW) / targetW);
+      targetW = maxW;
+    }
+
     const offCanvas = document.createElement('canvas');
-    offCanvas.width = video.videoWidth;
-    offCanvas.height = video.videoHeight;
+    offCanvas.width = targetW;
+    offCanvas.height = targetH;
     const offCtx = offCanvas.getContext('2d');
 
     // 1. Gambar frame video
-    offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
+    offCtx.drawImage(video, 0, 0, targetW, targetH);
 
     // 2. Gambar overlay bounding box di atas video
-    offCtx.drawImage(canvas, 0, 0, offCanvas.width, offCanvas.height);
+    offCtx.drawImage(canvas, 0, 0, targetW, targetH);
 
-    // 3. Konversi ke Base64 Data URL (JPEG, kualitas 0.92)
-    return offCanvas.toDataURL('image/jpeg', 0.92);
+    // 3. Konversi ke Base64 Data URL (JPEG, kualitas 0.78, lebar maks 960px)
+    return offCanvas.toDataURL('image/jpeg', 0.78);
   }
 
   /**
-   * Helper ringan untuk mengambil frame terkompresi dari video (lebar maks 640px)
-   * untuk Gemini Multimodal Vision analysis
+   * Helper ringan untuk mengambil frame terkompresi dari video (lebar maks 960px, JPEG 0.78)
+   * untuk Gemini Multimodal Vision analysis (payload ringan < 200 KB)
    */
   function captureCompressedFrame() {
     if (!video || !video.videoWidth || !video.videoHeight) {
       return null;
     }
 
-    const maxW = 640;
+    const maxW = 960;
     let targetW = video.videoWidth;
     let targetH = video.videoHeight;
 
@@ -1664,7 +1673,30 @@ document.addEventListener('DOMContentLoaded', () => {
     // Ambil frame murni dari video
     tempCtx.drawImage(video, 0, 0, targetW, targetH);
 
-    return tempCanvas.toDataURL('image/jpeg', 0.7);
+    return tempCanvas.toDataURL('image/jpeg', 0.78);
+  }
+
+  /**
+   * Helper parser error response backend:
+   * Membaca respons JSON (jika ada error_stage/reason) atau fallback pesan teks/HTML dari reverse proxy.
+   */
+  async function parseErrorResponse(response) {
+    let errorMsg = `HTTP ${response.status}: Server menolak permintaan (cek Console)`;
+    try {
+      const rawText = await response.text();
+      try {
+        const data = JSON.parse(rawText);
+        const stage = data.error_stage || data.reason || 'error';
+        const msg = data.message || JSON.stringify(data);
+        errorMsg = `HTTP ${response.status} [${stage}]: ${msg}`;
+        console.error('API Error Response:', response.status, data);
+      } catch (jsonErr) {
+        console.error('Non-JSON API Error Response:', response.status, rawText);
+      }
+    } catch (readErr) {
+      console.error('Failed to read error response:', readErr);
+    }
+    return errorMsg;
   }
 
   // =========================================================================
@@ -1676,7 +1708,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const csrfToken = getCsrfToken();
+    const csrfToken = window.CSRF_TOKEN || document.querySelector('meta[name="csrf-token"]')?.content || '';
     if (!csrfToken) {
       showToast('Token CSRF tidak ditemukan. Refresh halaman.', 'error');
       return;
@@ -1707,14 +1739,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const originalText = btnSnapshot.innerHTML;
     btnSnapshot.innerHTML = isCctv ? '📸 CCTV Mengambil...' : '⏳ Menyimpan...';
 
+    const BASE = window.BASE_PATH || '';
+
     try {
-      const response = await fetch(getApiUrl('/api/snapshot/save'), {
+      const response = await fetch(`${BASE}/api/snapshot/save`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-CSRF-Token': csrfToken
+          'X-CSRF-Token': window.CSRF_TOKEN || document.querySelector('meta[name="csrf-token"]')?.content || ''
         },
         body: JSON.stringify({
           image: base64Image,
@@ -1723,9 +1756,15 @@ document.addEventListener('DOMContentLoaded', () => {
         })
       });
 
+      if (!response.ok) {
+        const errorMsg = await parseErrorResponse(response);
+        showToast(errorMsg, 'error');
+        return null;
+      }
+
       const result = await response.json();
 
-      if (response.ok && (result.status === 'success' || result.status === 'ok')) {
+      if (result.status === 'success' || result.status === 'ok') {
         let msg = `Snapshot berhasil disimpan (${result.filename})`;
         if (result.telegram_sent) {
           msg += ' ✈️ Foto terkirim ke Telegram!';
@@ -1734,7 +1773,9 @@ document.addEventListener('DOMContentLoaded', () => {
         loadHistory();
         return result;
       } else {
-        showToast(result.message || 'Gagal menyimpan snapshot.', 'error');
+        const stage = result.error_stage || result.reason || 'error';
+        const errorMsg = `[${stage}]: ${result.message || 'Gagal menyimpan snapshot.'}`;
+        showToast(errorMsg, 'error');
       }
     } catch (err) {
       console.error('Error saat menyimpan snapshot:', err);
@@ -1838,21 +1879,31 @@ document.addEventListener('DOMContentLoaded', () => {
       requestPayload.image = compressedImage;
     }
 
+    const BASE = window.BASE_PATH || '';
+
     try {
-      const response = await fetch(getApiUrl('/api/ai/analyze'), {
+      const response = await fetch(`${BASE}/api/ai/analyze`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-CSRF-Token': csrfToken
+          'X-CSRF-Token': window.CSRF_TOKEN || document.querySelector('meta[name="csrf-token"]')?.content || ''
         },
         body: JSON.stringify(requestPayload)
       });
 
+      if (!response.ok) {
+        const errorMsg = await parseErrorResponse(response);
+        if (llmAnalysisContent) {
+          llmAnalysisContent.innerHTML = `<p style="color: var(--accent-danger);">⚠️ ${errorMsg}</p>`;
+        }
+        showToast(errorMsg, 'error');
+        return;
+      }
+
       const result = await response.json();
 
-      if (response.ok && (result.status === 'success' || result.status === 'ok')) {
+      if (result.status === 'success' || result.status === 'ok') {
         if (llmProviderBadge) {
           llmProviderBadge.textContent = result.provider_used || provider;
         }
@@ -1901,7 +1952,8 @@ document.addEventListener('DOMContentLoaded', () => {
           : `Analisis sukses via ${result.provider_used}`;
         showToast(msg, 'success');
       } else {
-        const errorMsg = result.message || 'Gagal memproses analisis LLM.';
+        const stage = result.error_stage || result.reason || 'error';
+        const errorMsg = `[${stage}]: ${result.message || 'Gagal memproses analisis LLM.'}`;
         if (llmAnalysisContent) {
           llmAnalysisContent.innerHTML = `<p style="color: var(--accent-danger);">⚠️ ${errorMsg}</p>`;
         }
@@ -2012,21 +2064,31 @@ document.addEventListener('DOMContentLoaded', () => {
       requestPayload.image = compressedImage;
     }
 
+    const BASE = window.BASE_PATH || '';
+
     try {
-      const response = await fetch(getApiUrl('/api/ai/analyze'), {
+      const response = await fetch(`${BASE}/api/ai/analyze`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-CSRF-Token': csrfToken
+          'X-CSRF-Token': window.CSRF_TOKEN || document.querySelector('meta[name="csrf-token"]')?.content || ''
         },
         body: JSON.stringify(requestPayload)
       });
 
+      if (!response.ok) {
+        const errorMsg = await parseErrorResponse(response);
+        if (llmAnalysisContent) {
+          llmAnalysisContent.innerHTML = `<p style="color: var(--accent-danger);">⚠️ ${errorMsg}</p>`;
+        }
+        showToast(errorMsg, 'error');
+        return;
+      }
+
       const result = await response.json();
 
-      if (response.ok && (result.status === 'success' || result.status === 'ok')) {
+      if (result.status === 'success' || result.status === 'ok') {
         if (llmProviderBadge) {
           llmProviderBadge.textContent = result.provider_used || provider;
         }
@@ -2089,7 +2151,8 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         }
       } else {
-        const errorMsg = result.message || 'Gagal memproses analisis AI.';
+        const stage = result.error_stage || result.reason || 'error';
+        const errorMsg = `[${stage}]: ${result.message || 'Gagal memproses analisis AI.'}`;
         showToast(errorMsg, 'error');
       }
     } catch (err) {
