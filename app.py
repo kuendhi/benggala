@@ -46,7 +46,11 @@ def inject_helpers():
         clean_file = filename.lstrip('/')
         if clean_file.startswith('static/'):
             clean_file = clean_file[len('static/'):]
-        return f"{base_path}/static/{clean_file}"
+        full_disk_path = os.path.join(BASE_DIR, 'static', clean_file)
+        v_param = ''
+        if os.path.exists(full_disk_path):
+            v_param = f"?v={int(os.path.getmtime(full_disk_path))}"
+        return f"{base_path}/static/{clean_file}{v_param}"
 
     return {
         'base_path': base_path,

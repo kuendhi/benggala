@@ -76,7 +76,7 @@
       <!-- Kanan: Tombol Cepat (Visi 2027, Mode Tenang, Mode Darurat, Settings, Install PWA) -->
       <div class="hud-header-right">
         <button type="button" id="btnRoadmap" class="hud-btn-accent" title="Visi Pengembangan 2027">📡 VISI 2027</button>
-        <button type="button" id="btnOpenKnowledgeHeader" class="hud-btn hud-btn-knowledge" title="Koreksi & Latih Objek (MobileNet + KNN)">🎯 LATIH</button>
+        <button type="button" id="btnOpenKnowledgeHeader" class="hud-btn hud-btn-knowledge desktop-only" title="Koreksi & Latih Objek (MobileNet + KNN)">🎯 LATIH</button>
         <button type="button" id="btnQuietMode" class="hud-btn" title="Toggle Mode Tenang (Sembunyikan HUD)">
           🌙
         </button>
@@ -605,7 +605,7 @@
       <button type="button" id="btnDisplayMode" class="btn-zoom-step" title="Mode Framing: Proporsional (Fit) / Layar Penuh (Fill)">⛶</button>
       <button type="button" id="btnOpenKnowledge" class="btn-zoom-step" title="🎯 Latih Objek (KNN Classifier)" style="color: #fbbf24; border-color: rgba(251, 191, 36, 0.4);">🎯</button>
       <button type="button" id="btnZoomOut" class="btn-zoom-step" title="Zoom Out (−0.1x)">−</button>
-      <input type="range" id="zoomSlider" min="0.5" max="3" step="0.05" value="1" title="Geser Zoom (0.5x - 3.0x)">
+      <input type="range" id="zoomSlider" min="1" max="3" step="0.05" value="1" title="Geser Zoom (1.0x - 3.0x)">
       <button type="button" id="btnZoomIn" class="btn-zoom-step" title="Zoom In (+0.1x)">+</button>
       <span id="zoomValue" class="zoom-value-badge" title="Klik untuk Reset Zoom (1.0x)">1.0x</span>
     </div>

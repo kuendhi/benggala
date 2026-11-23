@@ -886,7 +886,8 @@ document.addEventListener('DOMContentLoaded', () => {
           const videoAspect = video.videoWidth / video.videoHeight;
           const contAspect = contW / contH;
           const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-                                 (('ontouchstart' in window || navigator.maxTouchPoints > 0) && Math.max(window.innerWidth, window.innerHeight) <= 1024);
+                                 (('ontouchstart' in window || navigator.maxTouchPoints > 0) && Math.max(window.innerWidth, window.innerHeight) <= 1024) ||
+                                 (window.innerWidth <= 768);
 
           let targetW, targetH;
 
@@ -901,19 +902,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
           if (isMobileDevice) {
             // ===================================================================
-            // MODE HP / MOBILE: Responsif Penuh & Halus Saat Layar Diputar-putar
+            // MODE HP / MOBILE: Selalu Penuhi Layar 100% Penuh Tanpa Bar Hitam / Border
             // ===================================================================
-            stage.classList.remove('is-widescreen');
-            if (contW <= contH) {
-              // HP posisi tegak (Portrait)
-              stage.classList.add('is-portrait');
-            } else {
-              // HP posisi miring/tidur (Landscape)
-              stage.classList.remove('is-portrait');
-            }
-            // Penuhi layar HP secara dinamis tanpa bar kosong
-            targetW = contW;
-            targetH = contH;
+            stage.classList.remove('is-widescreen', 'is-portrait');
+            stage.style.width = '100%';
+            stage.style.height = '100%';
+            return;
           } else {
             // ===================================================================
             // MODE PC: Proporsional & Tetap Portrait Memenuhi Screen
@@ -986,13 +980,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Mendukung rentang zoom dari 0.5x (wide) hingga 3.0x (tele)
   // =========================================================================
   function applyCameraZoom(level) {
-    level = Math.max(0.5, Math.min(3.0, parseFloat(level) || 1.0));
+    level = Math.max(1.0, Math.min(3.0, parseFloat(level) || 1.0));
     currentZoom = level;
 
     // 1. Coba Hardware Zoom jika didukung oleh video track kamera (hanya untuk >= 1.0)
     let hardwareZoomSuccess = false;
     const track = stream ? stream.getVideoTracks()[0] : null;
-    if (track && typeof track.getCapabilities === 'function' && level >= 1.0) {
+    if (track && typeof track.getCapabilities === 'function') {
       try {
         const caps = track.getCapabilities();
         if (caps && 'zoom' in caps) {
@@ -1004,7 +998,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }).then(() => {
             if (cameraStage) cameraStage.style.transform = 'scale(1)';
           }).catch(() => {
-            if (cameraStage) cameraStage.style.transform = `scale(${level})`;
+            if (cameraStage) cameraStage.style.transform = `scale(${Math.max(1.0, level)})`;
           });
           hardwareZoomSuccess = true;
         }
@@ -1013,9 +1007,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // 2. Fallback Digital Smooth Zoom pada cameraStage jika hardware zoom tidak aktif atau level < 1.0
+    // 2. Fallback Digital Smooth Zoom pada cameraStage jika hardware zoom tidak aktif: CLAMP KE >= 1.0 (cegah shrink)
     if (!hardwareZoomSuccess && cameraStage) {
-      cameraStage.style.transform = `scale(${level})`;
+      const digitalScale = Math.max(1.0, level);
+      cameraStage.style.transform = `scale(${digitalScale})`;
     }
 
     // 3. Perbarui UI Zoom Slider & Badge Nilai
@@ -1147,9 +1142,9 @@ document.addEventListener('DOMContentLoaded', () => {
       cropY = (vh - cropH) / 2;
     }
 
-    // Downscale proporsional ke resolusi ideal tensor COCO-SSD (max 384px pada mobile, 480px pada desktop)
-    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    const MAX_SCAN_DIM = isMobileDevice ? 384 : 480;
+    // Downscale proporsional ke resolusi ideal tensor COCO-SSD (320px pada mobile, 416px pada desktop)
+    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (window.innerWidth <= 768) || (navigator.maxTouchPoints > 0);
+    const MAX_SCAN_DIM = isMobileDevice ? 320 : 416;
     const aspect = cropW / cropH;
     let scanW, scanH;
 
@@ -1253,8 +1248,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentLoopId = aiLoopId;
     isAiLoopRunning = true;
 
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                     (window.innerWidth <= 768) || (navigator.maxTouchPoints > 0);
+
     while (isStreaming && model && currentLoopId === aiLoopId) {
-      if (video.readyState >= 2 && !inferenceCycleActive) {
+      if (!document.hidden && video.readyState >= 2 && !inferenceCycleActive) {
         inferenceCycleActive = true;
         isDetecting = true;
         try {
@@ -1266,8 +1264,9 @@ document.addEventListener('DOMContentLoaded', () => {
           isDetecting = false;
         }
       }
-      // Micro-pause 10ms agar event queue UI tetap responsif
-      await new Promise(r => setTimeout(r, 10));
+      // Pause adaptif: Di HP berikan jeda 85ms agar GPU & main thread punya waktu render 30-60 FPS mulus
+      const pauseMs = isMobile ? 85 : 20;
+      await new Promise(r => setTimeout(r, pauseMs));
     }
     if (currentLoopId === aiLoopId) {
       isAiLoopRunning = false;
@@ -1278,6 +1277,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let renderFrameCount = 0;
     let currentFps = 0;
     let lastFpsUpdate = performance.now();
+    let lastTelemetryUpdate = 0;
 
     if (animationFrameId) {
       cancelAnimationFrame(animationFrameId);
@@ -1395,18 +1395,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
       updateLiveStats(displayPredictions);
 
-      // Update Telemetri & Mini Radar YOULO OS di 60 FPS
-      if (window.BenggalaCockpit && typeof window.BenggalaCockpit.updateTelemetry === 'function') {
-        window.BenggalaCockpit.updateTelemetry({
-          fps: currentFps,
-          predictions: displayPredictions,
-          videoWidth: video.videoWidth || 640,
-          videoHeight: video.videoHeight || 480,
-          threshold: Math.round(minConfidence * 100),
-          pixelsPerCm: pixelsPerCm,
-          isRunning: isStreaming,
-          isCctv: window.BenggalaCCTV ? window.BenggalaCCTV.isActive : false
-        });
+      // Update Telemetri & Mini Radar YOULO OS (Throttled ~250ms anti layout-thrashing di HP)
+      if (now - lastTelemetryUpdate >= 250) {
+        lastTelemetryUpdate = now;
+        if (window.BenggalaCockpit && typeof window.BenggalaCockpit.updateTelemetry === 'function') {
+          window.BenggalaCockpit.updateTelemetry({
+            fps: currentFps,
+            predictions: displayPredictions,
+            videoWidth: video.videoWidth || 640,
+            videoHeight: video.videoHeight || 480,
+            threshold: Math.round(minConfidence * 100),
+            pixelsPerCm: pixelsPerCm,
+            isRunning: isStreaming,
+            isCctv: window.BenggalaCCTV ? window.BenggalaCCTV.isActive : false
+          });
+        }
       }
 
       // Update Simulasi Sinyal ESP32 jika Overlay Visi 2027 sedang terbuka (Task 13B)
