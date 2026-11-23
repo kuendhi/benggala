@@ -20,3 +20,4 @@ venv/
 ENV/
 instance/
 .pytest_cache/
+scratch/
