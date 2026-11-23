@@ -1,19 +1,33 @@
-name: Auto Deploy Benggala to Hosting
+name: Deploy Benggala Python to cPanel
 
 on:
   push:
     branches:
       - main
+      - python-migration
 
 jobs:
-  web-deploy:
-    name: Deploy via FTP
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Sync files to Hosting via FTP
+      - name: Setup Python & Syntax Check
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Compile Check All Python Files
+        run: |
+          python -m py_compile app.py passenger_wsgi.py core/*.py routes/*.py
+
+      - name: Trigger Passenger Auto-Restart
+        run: |
+          mkdir -p tmp
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > tmp/restart.txt
+
+      - name: FTP Deploy to cPanel
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -23,10 +37,9 @@ jobs:
           exclude: |
             **/.git*
             **/.git*/**
-            .github/**
-            .env
-            .env.example
-            uploads/snapshots/*.jpg
-            uploads/snapshots/*.png
-            uploads/snapshots/*.json
-            uploads/snapshots/*.log
+            **/.env
+            **/venv/**
+            **/.venv/**
+            **/__pycache__/**
+            **/*.pyc
+            **/uploads/snapshots/*.jpg
