@@ -90,12 +90,12 @@ jobs:
 
                   if 'PassengerAppRoot' not in remote_content or 'PassengerPython' not in remote_content:
                       print('Configuring CloudLinux Passenger in .htaccess...')
-                      # Deteksi path virtualenv cPanel (Prioritaskan Python 3.9 sesuai spek cPanel)
+                      # Deteksi path virtualenv cPanel (Path terverifikasi via probe hosting)
                       py_candidates = [
-                          '/home/sikemban1/virtualenv/benggala/3.9/bin/python',
                           '/home/sikemban1/virtualenv/public_html/benggala/3.9/bin/python',
-                          '/home/sikemban1/virtualenv/benggala/3.10/bin/python',
-                          '/home/sikemban1/virtualenv/public_html/benggala/3.10/bin/python'
+                          '/home/sikemban1/virtualenv/benggala/3.9/bin/python',
+                          '/home/sikemban1/virtualenv/public_html/benggala/3.10/bin/python',
+                          '/home/sikemban1/virtualenv/benggala/3.10/bin/python'
                       ]
                       selected_py = py_candidates[0]
                       
@@ -120,12 +120,12 @@ jobs:
                       new_content = passenger_header + remote_content
                       ftp.storbinary('STOR .htaccess', io.BytesIO(new_content.encode('utf-8')))
                       print('Successfully injected CloudLinux Passenger block into .htaccess!')
-                  elif '/3.10/' in remote_content:
-                      print('Updating PassengerPython 3.10 to 3.9 in .htaccess...')
-                      selected_py = '/home/sikemban1/virtualenv/benggala/3.9/bin/python'
-                      new_content = remote_content.replace('/home/sikemban1/virtualenv/public_html/benggala/3.10/bin/python', selected_py).replace('/home/sikemban1/virtualenv/benggala/3.10/bin/python', selected_py)
+                  elif '/3.10/' in remote_content or '/virtualenv/benggala/' in remote_content:
+                      print('Updating PassengerPython to verified /public_html/benggala/3.9/ in .htaccess...')
+                      selected_py = '/home/sikemban1/virtualenv/public_html/benggala/3.9/bin/python'
+                      new_content = remote_content.replace('/home/sikemban1/virtualenv/public_html/benggala/3.10/bin/python', selected_py).replace('/home/sikemban1/virtualenv/benggala/3.10/bin/python', selected_py).replace('/home/sikemban1/virtualenv/benggala/3.9/bin/python', selected_py)
                       ftp.storbinary('STOR .htaccess', io.BytesIO(new_content.encode('utf-8')))
-                      print('Successfully updated PassengerPython to 3.9 in .htaccess!')
+                      print('Successfully updated PassengerPython in .htaccess!')
 
                   print('--- REMOTE FTP DIRECTORY LISTING ---')
                   ftp.retrlines('LIST')
