@@ -3,7 +3,7 @@ import secrets
 import platform
 from flask import Flask, render_template, session, send_from_directory, make_response, jsonify, request
 from dotenv import load_dotenv
-from core.database import db_fetch_one, db_fetch_all
+from core.database import db_fetch_one, db_fetch_all, get_all_settings
 from routes.settings_history import settings_history_bp
 from routes.ai_snapshot import ai_snapshot_bp
 from routes.python_power import python_power_bp
@@ -72,7 +72,34 @@ def item_detail():
         session['csrf_token'] = secrets.token_hex(32)
     base_path = request.script_root.rstrip('/') or os.getenv('BASE_PATH', '').rstrip('/')
     target_label = (request.args.get('label') or '').strip()
-    return render_template('item_detail.html', csrf_token=session['csrf_token'], base_path=base_path, target_label=target_label)
+
+    settings = get_all_settings()
+    gemini_key = (settings.get('gemini_api_key') or os.getenv('GEMINI_API_KEY') or '').strip()
+    deepseek_key = (settings.get('deepseek_api_key') or os.getenv('DEEPSEEK_API_KEY') or '').strip()
+
+    if gemini_key.startswith('sk-ant-') or gemini_key.lower() in ('dummy', 'none', 'null', 'masked') or '***' in gemini_key:
+        gemini_key = (os.getenv('GEMINI_API_KEY') or '').strip()
+    if deepseek_key.startswith('sk-ant-') or deepseek_key.lower() in ('dummy', 'none', 'null', 'masked') or '***' in deepseek_key:
+        deepseek_key = (os.getenv('DEEPSEEK_API_KEY') or '').strip()
+
+    if gemini_key and not gemini_key.startswith('dummy'):
+        active_provider = "Google Gemini"
+        active_model = (settings.get('gemini_model') or os.getenv('GEMINI_MODEL') or 'gemini-2.5-flash').strip()
+    elif deepseek_key and not deepseek_key.startswith('dummy'):
+        active_provider = "DeepSeek AI"
+        active_model = (settings.get('deepseek_model') or os.getenv('DEEPSEEK_MODEL') or 'deepseek-chat').strip()
+    else:
+        active_provider = "Benggala Local AI"
+        active_model = "Rule-based Engine"
+
+    return render_template(
+        'item_detail.html',
+        csrf_token=session['csrf_token'],
+        base_path=base_path,
+        target_label=target_label,
+        active_provider=active_provider,
+        active_model=active_model
+    )
 
 @app.route('/manifest.json')
 def manifest():

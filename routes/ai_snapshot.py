@@ -1084,7 +1084,8 @@ def chat_item_ai():
     deepseek_model = (settings.get('deepseek_model') or os.getenv('DEEPSEEK_MODEL') or 'deepseek-chat').strip()
 
     reply_text = ""
-    provider_used = "offline"
+    provider_used = "Benggala Local AI"
+    model_used = "Rule-based Engine"
 
     # Bersihkan image_b64 jika ada
     if image_b64:
@@ -1104,7 +1105,8 @@ def chat_item_ai():
         )
         if success and out.strip():
             reply_text = out.strip()
-            provider_used = "gemini"
+            provider_used = "Google Gemini"
+            model_used = gemini_model
 
     # 2. Fallback ke DeepSeek jika Gemini belum berhasil
     if not reply_text and deepseek_key:
@@ -1116,7 +1118,8 @@ def chat_item_ai():
         )
         if success and out.strip():
             reply_text = out.strip()
-            provider_used = "deepseek"
+            provider_used = "DeepSeek AI"
+            model_used = deepseek_model
 
     # 3. Fallback cerdas offline jika tidak ada API key yang aktif
     if not reply_text:
@@ -1135,10 +1138,12 @@ def chat_item_ai():
                 f"• **Status:** {safety.capitalize()} ({safety_note})\n\n"
                 "Silakan ajukan pertanyaan lebih spesifik mengenai kegunaan, spesifikasi, atau cara penanganannya."
             )
-        provider_used = "offline-tactical"
+        provider_used = "Benggala Local AI"
+        model_used = "Rule-based Engine"
 
     return jsonify({
         "status": "ok",
         "reply": reply_text,
-        "provider": provider_used
+        "provider": provider_used,
+        "model": model_used
     }), 200
