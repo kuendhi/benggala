@@ -637,13 +637,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // Pada smartphone / mobile gunakan lite_mobilenet_v2 agar FPS mencapai 30+ FPS (bebas lag)
-      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const targetBase = isMobileDevice ? 'lite_mobilenet_v2' : 'mobilenet_v2';
+      // Task 20A: Gunakan varian lite_mobilenet_v2 untuk semua perangkat agar FPS maksimal dan bebas lag
       try {
-        model = await cocoSsd.load({ base: targetBase });
+        model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
       } catch (errLoad) {
-        console.warn(`Gagal memuat ${targetBase}, fallback ke default:`, errLoad);
+        console.warn('Gagal memuat lite_mobilenet_v2, fallback ke default:', errLoad);
         model = await cocoSsd.load();
       }
 
@@ -818,60 +816,44 @@ document.addEventListener('DOMContentLoaded', () => {
       animationFrameId = null;
     }
 
-    // Resolusi Tinggi Ideal: Full HD 1080p hingga 4K
-    // Sesuaikan rasio dan dimensi ideal berdasarkan orientasi yang dipilih
-    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-    let targetIdealW = 1920;
-    let targetIdealH = 1080;
-    let targetAspect = 1.7777777778; // 16:9 Widescreen
-
-    if (cameraOrientation === 'portrait') {
-      targetIdealW = 1080;
-      targetIdealH = 1920;
-      targetAspect = 0.5625; // 9:16 Portrait
-    }
-
-    const primaryVideoConstraints = {
-      width: { ideal: targetIdealW, max: 1920 },
-      height: { ideal: targetIdealH, max: 1920 },
-      aspectRatio: { ideal: targetAspect }
+    // Task 20A: Constraint Kamera 720p (Aman Portrait & Landscape) untuk Boost FPS & Efisiensi WebGL
+    const isPortrait = (cameraOrientation === 'portrait') || (window.innerHeight > window.innerWidth);
+    const preferredVideoConstraints = {
+      facingMode: selectedCameraDeviceId ? undefined : (currentFacingMode || { ideal: 'environment' }),
+      width: { ideal: isPortrait ? 720 : 1280 },
+      height: { ideal: isPortrait ? 1280 : 720 },
+      frameRate: { ideal: 30, max: 30 }
     };
-
     if (selectedCameraDeviceId) {
-      primaryVideoConstraints.deviceId = { exact: selectedCameraDeviceId };
-    } else if (isMobileDevice) {
-      primaryVideoConstraints.facingMode = { ideal: currentFacingMode };
+      preferredVideoConstraints.deviceId = { exact: selectedCameraDeviceId };
     }
 
     try {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: primaryVideoConstraints
+          video: preferredVideoConstraints
         });
       } catch (errConstraint) {
-        console.warn('Resolusi 1080p / kamera spesifik tidak dapat dipenuhi kaku, mencoba fallback resolusi fleksibel:', errConstraint);
+        console.warn('Resolusi 720p terarah ditolak (OverconstrainedError), mencoba fallback 720p standar:', errConstraint);
         try {
           const fallbackConstraints = {
-            width: { ideal: (cameraOrientation === 'portrait' ? 720 : 1280), min: 480 },
-            height: { ideal: (cameraOrientation === 'portrait' ? 1280 : 720), min: 480 },
-            aspectRatio: { ideal: targetAspect }
+            facingMode: currentFacingMode || 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
           };
           if (selectedCameraDeviceId) {
             fallbackConstraints.deviceId = { ideal: selectedCameraDeviceId };
-          } else if (isMobileDevice) {
-            fallbackConstraints.facingMode = { ideal: currentFacingMode };
           }
           stream = await navigator.mediaDevices.getUserMedia({
             audio: false,
             video: fallbackConstraints
           });
         } catch (errFallback) {
-          console.warn('Fallback 720p gagal, mencoba stream dasar:', errFallback);
+          console.warn('Fallback 720p standar gagal, mencoba stream video dasar:', errFallback);
           stream = await navigator.mediaDevices.getUserMedia({
             audio: false,
-            video: isMobileDevice ? { facingMode: currentFacingMode } : true
+            video: true
           });
         }
       }
@@ -935,8 +917,17 @@ document.addEventListener('DOMContentLoaded', () => {
       // Perbarui daftar multi-kamera sekarang karena izin mediaDevices telah terbuka
       await refreshCameraDevices();
 
-      const resBadge = (video.videoWidth >= 1920) ? 'FHD 1080p' : (video.videoWidth >= 1280 ? 'HD 720p' : `${video.videoWidth}×${video.videoHeight}`);
-      showToast(`✨ Monitor Utama Cerah & Resolusi Tinggi: ${video.videoWidth}×${video.videoHeight} (${resBadge})`, 'success');
+      // Perbarui telemetri resolusi aktual di cockpit HUD
+      if (window.BenggalaCockpit && typeof window.BenggalaCockpit.updateTelemetry === 'function') {
+        window.BenggalaCockpit.updateTelemetry({
+          videoWidth: video.videoWidth,
+          videoHeight: video.videoHeight,
+          isRunning: true
+        });
+      }
+
+      const resBadge = (video.videoWidth >= 1920) ? 'FHD 1080p' : (video.videoWidth >= 1280 || video.videoHeight >= 1280 ? 'HD 720p' : `${video.videoWidth}×${video.videoHeight}`);
+      showToast(`✨ Stream Kamera 720p Aktif: ${video.videoWidth}×${video.videoHeight} (${resBadge})`, 'success');
     } catch (err) {
       console.error('Error saat mengakses kamera:', err);
       let errorMsg = 'Gagal mengakses kamera.';
