@@ -1460,7 +1460,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const csrfToken = getCsrfToken();
-    const provider = llmProviderSelect ? llmProviderSelect.value : 'deepseek';
+    const provider = llmProviderSelect ? llmProviderSelect.value : 'gemini';
 
     // Format objek untuk dikirim ke LLM (menggunakan terjemahan Bahasa Indonesia dan perkiraan ukuran cm)
     const detectedObjects = currentPredictions.map(p => {
@@ -1615,7 +1615,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function executeAiAnalysisWithLog(logId = 0, objectsToAnalyze = null, isAutoLock = false) {
     const csrfToken = getCsrfToken();
-    const provider = llmProviderSelect ? llmProviderSelect.value : 'deepseek';
+    const provider = llmProviderSelect ? llmProviderSelect.value : 'gemini';
     const targetObjects = objectsToAnalyze || currentPredictions;
 
     const detectedObjects = targetObjects.map(p => {
@@ -2394,6 +2394,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const d = settingsData;
         if (setLlmProvider && (d.llm_default_provider || d.llm_provider)) {
           setLlmProvider.value = d.llm_default_provider || d.llm_provider;
+        }
+        if (llmProviderSelect && (d.llm_default_provider || d.llm_provider)) {
+          llmProviderSelect.value = d.llm_default_provider || d.llm_provider;
         }
         if (setDeepSeekKey && d.deepseek_api_key) {
           setDeepSeekKey.value = d.deepseek_api_key;

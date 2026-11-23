@@ -263,6 +263,13 @@ def save_snapshot():
         "telegram_sent": telegram_sent
     }), 200
 
+def _clean_api_key(key_val: str, env_var: str) -> str:
+    """Membersihkan API key dan fallback otomatis ke env var jika dummy/placeholder/masked."""
+    k = str(key_val or '').strip()
+    if not k or '****' in k or k.startswith('ISI_') or 'DemoKey' in k or 'FakeKey' in k or len(k) < 8:
+        return os.getenv(env_var, '').strip()
+    return k
+
 # -----------------------------------------------------------------------------
 # 2. POST /api/ai/analyze (Smart LLM Router dengan Auto-Fallback)
 # -----------------------------------------------------------------------------
@@ -277,9 +284,9 @@ def analyze_ai():
     payload = request.get_json(silent=True) or {}
     settings = get_all_settings()
 
-    # Kredensial AI dari settings (fallback ke environment)
-    gemini_key = settings.get('gemini_api_key') or os.getenv('GEMINI_API_KEY', '')
-    deepseek_key = settings.get('deepseek_api_key') or os.getenv('DEEPSEEK_API_KEY', '')
+    # Kredensial AI dari settings (fallback ke environment jika kosong/dummy)
+    gemini_key = _clean_api_key(settings.get('gemini_api_key'), 'GEMINI_API_KEY')
+    deepseek_key = _clean_api_key(settings.get('deepseek_api_key'), 'DEEPSEEK_API_KEY')
 
     default_provider = (settings.get('llm_provider') or settings.get('llm_default_provider') or os.getenv('LLM_DEFAULT_PROVIDER') or 'gemini').lower()
     requested_provider = (payload.get('provider') or default_provider).lower()
@@ -318,11 +325,17 @@ def analyze_ai():
     # 1. Jalankan Provider Utama
     fallback_triggered = False
     used_provider = primary
+    error_primary = None
+    error_secondary = None
 
     if primary == 'gemini':
         success, result_text = _call_gemini_vision(gemini_key, user_prompt, image_b64, system_prompt)
     else:
         success, result_text = _call_deepseek_text(deepseek_key, system_prompt, user_prompt)
+
+    if not success:
+        error_primary = result_text
+        current_app.logger.warning(f"AI Provider primer ({primary}) gagal: {error_primary}")
 
     # 2. Jika Provider Utama Gagal, Jalankan Provider Cadangan (Auto-Fallback)
     if not success:
@@ -333,11 +346,20 @@ def analyze_ai():
         else:
             success, result_text = _call_deepseek_text(deepseek_key, system_prompt, user_prompt)
 
-    # 3. Jika Kedua Provider Gagal, Kembalikan HTTP 502
+        if not success:
+            error_secondary = result_text
+            current_app.logger.error(f"AI Provider cadangan ({secondary}) gagal: {error_secondary}")
+
+    # 3. Jika Kedua Provider Gagal, Kembalikan HTTP 502 dengan Pesan Diagnostik Informatif
     if not success:
+        diag_msg = f"Layanan AI sementara tidak tersedia ({primary}: {error_primary}; {secondary}: {error_secondary})."
         return jsonify({
             "status": "error",
-            "message": "Layanan AI sementara tidak tersedia. Silakan periksa koneksi atau API Key Anda.",
+            "message": diag_msg,
+            "error_details": {
+                "primary": f"{primary}: {error_primary}",
+                "secondary": f"{secondary}: {error_secondary}"
+            },
             "fallback_triggered": True
         }), 502
 
