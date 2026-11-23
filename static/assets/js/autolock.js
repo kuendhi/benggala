@@ -426,10 +426,7 @@
       ctx.strokeStyle = this.currentColor;
       ctx.lineWidth = (this.state === 'LOCKED') ? 2.5 : 1.8;
 
-      // 1. Gambar Garis Kotak Bounding Halus
-      ctx.strokeRect(x, y, w, h);
-
-      // 2. Gambar Reticle Corner Brackets (Siku Sudut Rudal)
+      // 1. Gambar Reticle Corner Brackets (Siku Sudut Rudal) - Hanya 1 kotak dari detektor tanpa kotak ganda
       const bracketLen = Math.min(22, w / 4, h / 4);
       // Sudut menyempit halus pada fase LOCKING (offset menyempit dari 10px ke 0px)
       const bracketOffset = (this.state === 'LOCKING') 

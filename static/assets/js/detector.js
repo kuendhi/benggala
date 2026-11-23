@@ -1350,10 +1350,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Urutkan kandidat:
-    // Sesuai Aturan Task 19A:
+    // Sesuai Aturan Task 19A & Task 19C:
     // 1. Giant box (> 0.72 selain person) selalu ditaruh di prioritas paling bawah.
     // 2. Large background (> 0.40 sofa, meja, bed, bench) jika window.IGNORE_BG_MODE aktif ditaruh di prioritas paling bawah.
-    // 3. Objek foreground normal diurutkan berdasarkan confidence tertinggi.
+    // 3. Objek kustom KNN diutamakan di prioritas teratas.
+    // 4. Objek foreground normal diurutkan berdasarkan confidence tertinggi.
     const sorted = [...cleaned].sort((a, b) => {
       const aGiant = a.isGiantBox ? 1 : 0;
       const bGiant = b.isGiantBox ? 1 : 0;
@@ -1364,6 +1365,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const bBg = b.isLargeBg ? 1 : 0;
         if (aBg !== bBg) return aBg - bBg;
       }
+
+      // Prioritaskan objek yang memiliki label kustom / KNN
+      const aCustom = (a.isCustom || a.customLabel) ? 1 : 0;
+      const bCustom = (b.isCustom || b.customLabel) ? 1 : 0;
+      if (aCustom !== bCustom) return bCustom - aCustom;
 
       return b.score - a.score;
     });
@@ -1376,8 +1382,8 @@ document.addEventListener('DOMContentLoaded', () => {
       for (const win of accepted) {
         const { iou, overlapA, overlapB } = calculateBoxOverlap(win.bbox, cand.bbox);
 
-        // 1. IoU tinggi (kotak hampir berimpit)
-        if (iou > iouThreshold) {
+        // 1. IoU tinggi (kotak hampir berimpit) - Turunkan ambang ke 0.32 agar kotak ganda beda detektor/kelas terfilter
+        if (iou > 0.32) {
           isDuplicateOrNested = true;
           break;
         }
@@ -1386,23 +1392,27 @@ document.addEventListener('DOMContentLoaded', () => {
         // PENTING: Jika win adalah background / permukaan meja/sofa/kasur (win.isLargeBg atau win.area > cand.area * 2.2),
         // JANGAN supresi cand! Benda kecil di atas meja/sofa adalah objek nyata.
         const winIsContainer = win.isLargeBg || BACKGROUND_CLASSES.includes(win.class) || (win.area > cand.area * 2.2);
-        if (overlapB > containmentThreshold && !winIsContainer) {
+        if (overlapB > 0.40 && !winIsContainer) {
           isDuplicateOrNested = true;
           break;
         }
 
-        // 3. Kotak yang sudah diterima berada di dalam kandidat ini
-        if (overlapA > containmentThreshold) {
-          // Jika kelas sama persis, buang duplikat kotak yang lebih besar / skor lebih rendah
-          if (cand.class === win.class) {
-            isDuplicateOrNested = true;
-            break;
-          }
-          // Jika cand adalah giant box (> 0.72), buang cand
-          if (cand.isGiantBox) {
-            isDuplicateOrNested = true;
-            break;
-          }
+        // 3. Kotak yang sudah diterima berada di dalam kandidat ini (overlapA > 0.40)
+        const candIsContainer = cand.isLargeBg || BACKGROUND_CLASSES.includes(cand.class) || (cand.area > win.area * 2.2);
+        if (overlapA > 0.40 && !candIsContainer) {
+          // Bersifat class-agnostic: buang kandidat yang overlap agar tidak ada 2 kotak pada objek yang sama
+          isDuplicateOrNested = true;
+          break;
+        }
+
+        // 4. Deteksi titik tengah: Jika titik pusat cand berada di dalam kotak win dan ukurannya sebanding
+        const candMidX = cand.bbox[0] + cand.bbox[2] / 2;
+        const candMidY = cand.bbox[1] + cand.bbox[3] / 2;
+        const inWinX = (candMidX >= win.bbox[0] && candMidX <= win.bbox[0] + win.bbox[2]);
+        const inWinY = (candMidY >= win.bbox[1] && candMidY <= win.bbox[1] + win.bbox[3]);
+        if (inWinX && inWinY && !winIsContainer && !candIsContainer) {
+          isDuplicateOrNested = true;
+          break;
         }
       }
 
@@ -1893,7 +1903,16 @@ document.addEventListener('DOMContentLoaded', () => {
       ctx.font = `bold ${itemFontSize}px sans-serif`;
 
       const isCustomObj = Boolean(prediction.isCustom || prediction.customLabel);
-      const color = isCustomObj ? '#fbbf24' : getColorForClass(prediction.class);
+
+      // Sinkronkan warna kotak tunggal dengan status kuncian AutoLock (Tactical Unified HUD)
+      const isAutoLockTarget = window.BenggalaAutoLock &&
+        window.BenggalaAutoLock.enabled &&
+        (window.BenggalaAutoLock.state === 'LOCKING' || window.BenggalaAutoLock.state === 'LOCKED') &&
+        (window.BenggalaAutoLock.trackingTarget === prediction || window.BenggalaAutoLock.lockedTarget === prediction);
+
+      const color = isAutoLockTarget
+        ? window.BenggalaAutoLock.currentColor
+        : (isCustomObj ? '#fbbf24' : getColorForClass(prediction.class));
       const translatedName = prediction.customLabel
         ? `★ ${prediction.customLabel}`
         : (typeof window.translateLabel === 'function' ? window.translateLabel(prediction.class) : prediction.class);
