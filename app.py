@@ -83,13 +83,13 @@ def item_detail():
         deepseek_key = (os.getenv('DEEPSEEK_API_KEY') or '').strip()
 
     if gemini_key and not gemini_key.startswith('dummy'):
-        active_provider = "Google Gemini"
+        active_provider = "Nirmala AI"
         active_model = (settings.get('gemini_model') or os.getenv('GEMINI_MODEL') or 'gemini-2.5-flash').strip()
     elif deepseek_key and not deepseek_key.startswith('dummy'):
-        active_provider = "DeepSeek AI"
+        active_provider = "Nirmala AI"
         active_model = (settings.get('deepseek_model') or os.getenv('DEEPSEEK_MODEL') or 'deepseek-chat').strip()
     else:
-        active_provider = "Benggala Local AI"
+        active_provider = "Nirmala AI"
         active_model = "Rule-based Engine"
 
     return render_template(

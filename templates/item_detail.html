@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
-  <title>Antigravity AI // Detail Objek & Diskusi Interaktif</title>
+  <title>Nirmala AI // Detail Objek & Diskusi Interaktif</title>
   <meta name="csrf-token" content="{{ csrf_token }}">
   <meta name="theme-color" content="#0b0f17">
 
@@ -14,10 +14,10 @@
 
   <style>
     :root {
-      /* Google Antigravity Palette */
+      /* Nirmala AI (Google Antigravity Dark Palette) */
       --ag-bg-base: #0b0f17;
       --ag-bg-surface: #121824;
-      --ag-bg-card: rgba(18, 24, 38, 0.78);
+      --ag-bg-card: rgba(18, 24, 38, 0.85);
       --ag-border: rgba(255, 255, 255, 0.09);
       --ag-border-subtle: rgba(255, 255, 255, 0.05);
       --ag-border-focus: rgba(66, 133, 244, 0.55);
@@ -25,7 +25,7 @@
       --ag-text-muted: #94a3b8;
       --ag-text-dim: #64748b;
       
-      /* Gemini / Antigravity Gradients */
+      /* Gemini / Nirmala Gradients */
       --ag-gemini-gradient: linear-gradient(135deg, #4285f4 0%, #9b72cf 50%, #ec4899 100%);
       --ag-gemini-gradient-subtle: linear-gradient(135deg, rgba(66, 133, 244, 0.12) 0%, rgba(155, 114, 207, 0.12) 50%, rgba(236, 72, 153, 0.12) 100%);
       --ag-gemini-blue: #4285f4;
@@ -40,6 +40,10 @@
       /* Typography */
       --ag-font-main: 'Google Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       --ag-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+      /* Header & Footer Heights */
+      --header-height: 52px;
+      --footer-height: 68px;
     }
 
     /* Reset & Universal Smooth Scrolling Fix */
@@ -65,62 +69,66 @@
       background-attachment: fixed;
       color: var(--ag-text);
       font-family: var(--ag-font-main);
-      line-height: 1.55;
+      line-height: 1.5;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
       
-      /* WAJIB: Pastikan halaman bisa di-scroll dan digeser di semua HP dan desktop */
       width: 100%;
       min-height: 100vh;
-      height: auto !important;
-      max-height: none !important;
-      overflow-x: hidden !important;
-      overflow-y: auto !important;
-      -webkit-overflow-scrolling: touch !important;
-      touch-action: pan-y !important;
-      user-select: text !important;
-      
-      display: flex;
-      flex-direction: column;
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
+      user-select: text;
     }
 
-    /* Top Antigravity Navigation Bar */
+    /* =========================================================================
+       1. Top Fixed Navigation Bar (Always Visible at Top)
+       ========================================================================= */
     .ag-nav-bar {
-      position: sticky;
+      position: fixed;
       top: 0;
-      z-index: 100;
-      background: rgba(11, 15, 23, 0.88);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
+      left: 0;
+      right: 0;
+      width: 100%;
+      height: var(--header-height);
+      z-index: 1000;
+      background: rgba(11, 15, 23, 0.94);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       border-bottom: 1px solid var(--ag-border);
-      padding: 10px 18px;
+      padding: 0 16px;
+      padding-top: env(safe-area-inset-top, 0px);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
-      width: 100%;
+      gap: 10px;
+      flex-wrap: nowrap;
     }
 
     .ag-nav-left {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
+      flex-shrink: 0;
     }
 
     .btn-ag-back {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 6px;
       background: rgba(255, 255, 255, 0.06);
       border: 1px solid var(--ag-border);
       color: var(--ag-text);
       font-size: 0.82rem;
       font-weight: 500;
-      padding: 7px 14px;
+      padding: 6px 12px;
       border-radius: 20px;
       text-decoration: none;
       transition: all 0.2s ease;
       cursor: pointer;
+      white-space: nowrap;
     }
 
     .btn-ag-back:hover {
@@ -145,44 +153,46 @@
       align-items: center;
       justify-content: center;
       color: #ffffff;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       box-shadow: 0 0 12px var(--ag-gemini-glow);
+      flex-shrink: 0;
     }
 
     .ag-brand-title {
-      font-size: 0.96rem;
+      font-size: 0.95rem;
       font-weight: 600;
       letter-spacing: -0.2px;
       color: #ffffff;
       display: flex;
       align-items: center;
       gap: 6px;
+      white-space: nowrap;
     }
 
     .ag-brand-title span.sub {
       color: var(--ag-text-muted);
       font-weight: 400;
-      font-size: 0.82rem;
+      font-size: 0.8rem;
     }
 
-    /* Active Model Chip (Google Antigravity Style) */
+    /* Active Model Chip in Top Bar */
     .ag-model-chip {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       background: var(--ag-gemini-gradient-subtle);
       border: 1px solid rgba(66, 133, 244, 0.35);
-      padding: 5px 12px;
+      padding: 4px 10px;
       border-radius: 20px;
       font-family: var(--ag-font-mono);
       font-size: 0.74rem;
       color: #93c5fd;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      flex-shrink: 0;
+      white-space: nowrap;
     }
 
     .ag-model-sparkle {
-      color: #93c5fd;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       background: var(--ag-gemini-gradient);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -219,6 +229,7 @@
       background: var(--ag-emerald);
       box-shadow: 0 0 8px var(--ag-emerald);
       animation: ag-pulse 1.8s infinite;
+      flex-shrink: 0;
     }
 
     @keyframes ag-pulse {
@@ -226,40 +237,43 @@
       50% { opacity: 0.4; transform: scale(0.85); }
     }
 
-    /* Main Content Wrapper */
+    /* =========================================================================
+       2. Scrollable Middle Workspace (Padded for Fixed Top & Bottom Bars)
+       ========================================================================= */
     .ag-workspace {
-      flex: 1;
       width: 100%;
       max-width: 860px;
       margin: 0 auto;
-      padding: 16px;
+      padding: 14px 16px;
+      padding-top: calc(var(--header-height) + 12px + env(safe-area-inset-top, 0px));
+      padding-bottom: calc(var(--footer-height) + 16px + env(safe-area-inset-bottom, 0px));
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
     }
 
-    /* Object Artifact Card (Google Antigravity Style) */
+    /* Object Artifact Card (Compact on Mobile) */
     .ag-artifact-card {
       background: var(--ag-bg-card);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
       border: 1px solid var(--ag-border);
-      border-radius: 16px;
+      border-radius: 14px;
       overflow: hidden;
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
       transition: border-color 0.2s ease;
     }
 
     .ag-artifact-card:hover {
-      border-color: var(--ag-border-hover);
+      border-color: rgba(255, 255, 255, 0.18);
     }
 
     .ag-artifact-header {
-      padding: 12px 16px;
+      padding: 10px 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      gap: 8px;
       background: rgba(255, 255, 255, 0.02);
       border-bottom: 1px solid var(--ag-border-subtle);
       cursor: pointer;
@@ -269,29 +283,34 @@
     .ag-artifact-title-row {
       display: flex;
       align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
+      gap: 8px;
+      flex-wrap: nowrap;
+      overflow: hidden;
     }
 
     .ag-artifact-icon {
-      font-size: 1.15rem;
+      font-size: 1.1rem;
+      flex-shrink: 0;
     }
 
     .ag-artifact-title {
-      font-size: 1.05rem;
+      font-size: 0.98rem;
       font-weight: 600;
       color: #ffffff;
-      letter-spacing: -0.2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .ag-pill-tag {
       font-family: var(--ag-font-mono);
-      font-size: 0.68rem;
+      font-size: 0.65rem;
       font-weight: 600;
-      padding: 2px 8px;
-      border-radius: 12px;
-      letter-spacing: 0.4px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      letter-spacing: 0.3px;
       text-transform: uppercase;
+      flex-shrink: 0;
     }
 
     .ag-tag-cat {
@@ -320,13 +339,14 @@
       background: transparent;
       border: none;
       color: var(--ag-text-muted);
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 4px;
-      padding: 4px 8px;
+      padding: 3px 6px;
       border-radius: 6px;
+      flex-shrink: 0;
       transition: all 0.18s ease;
     }
 
@@ -335,12 +355,12 @@
       color: #ffffff;
     }
 
-    /* Artifact Body / Dossier Grid */
+    /* Artifact Body */
     .ag-artifact-body {
-      padding: 16px;
+      padding: 14px;
       display: grid;
-      grid-template-columns: 180px 1fr;
-      gap: 16px;
+      grid-template-columns: 160px 1fr;
+      gap: 14px;
       transition: all 0.3s ease;
     }
 
@@ -353,7 +373,7 @@
       aspect-ratio: 1 / 1;
       background: #060910;
       border: 1px solid var(--ag-border);
-      border-radius: 12px;
+      border-radius: 10px;
       overflow: hidden;
       display: flex;
       align-items: center;
@@ -370,65 +390,64 @@
 
     .ag-photo-empty {
       color: var(--ag-text-dim);
-      font-size: 0.78rem;
+      font-size: 0.76rem;
       text-align: center;
-      padding: 8px;
+      padding: 6px;
     }
 
     .ag-dossier-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 10px;
+      gap: 8px;
     }
 
     .ag-dossier-item {
       background: rgba(255, 255, 255, 0.025);
       border: 1px solid var(--ag-border-subtle);
-      border-radius: 10px;
-      padding: 10px 12px;
+      border-radius: 8px;
+      padding: 8px 10px;
       display: flex;
       flex-direction: column;
-      gap: 3px;
+      gap: 2px;
     }
 
     .ag-dossier-label {
-      font-size: 0.68rem;
+      font-size: 0.65rem;
       font-weight: 600;
       color: var(--ag-gemini-blue);
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.4px;
     }
 
     .ag-dossier-val {
-      font-size: 0.88rem;
+      font-size: 0.85rem;
       color: #e2e8f0;
-      line-height: 1.4;
+      line-height: 1.35;
     }
 
-    /* Conversation Stream (Google Antigravity Chat UI) */
+    /* Conversation Stream Card */
     .ag-chat-card {
       background: var(--ag-bg-card);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
       border: 1px solid var(--ag-border);
-      border-radius: 16px;
+      border-radius: 14px;
       display: flex;
       flex-direction: column;
-      flex: 1;
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
     }
 
     .ag-chat-header {
-      padding: 14px 18px;
+      padding: 12px 14px;
       border-bottom: 1px solid var(--ag-border-subtle);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      gap: 8px;
     }
 
     .ag-chat-title-group h3 {
-      font-size: 1.02rem;
+      font-size: 0.96rem;
       font-weight: 600;
       color: #ffffff;
       display: flex;
@@ -437,18 +456,19 @@
     }
 
     .ag-chat-title-group p {
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       color: var(--ag-text-muted);
       margin-top: 2px;
     }
 
-    /* Suggestion Chips (Antigravity Pills) */
+    /* Suggestion Chips */
     .ag-chips-container {
-      padding: 12px 16px;
+      padding: 10px 12px;
       display: flex;
-      gap: 8px;
+      gap: 6px;
       overflow-x: auto;
       scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
       border-bottom: 1px solid var(--ag-border-subtle);
       background: rgba(255, 255, 255, 0.015);
     }
@@ -459,39 +479,39 @@
       border: 1px solid var(--ag-border);
       color: #cbd5e1;
       font-family: var(--ag-font-main);
-      font-size: 0.8rem;
+      font-size: 0.76rem;
       font-weight: 500;
-      padding: 6px 14px;
-      border-radius: 20px;
+      padding: 5px 12px;
+      border-radius: 16px;
       cursor: pointer;
       white-space: nowrap;
       transition: all 0.18s ease;
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 4px;
+      flex-shrink: 0;
     }
 
     .ag-chip-btn:hover {
       background: rgba(66, 133, 244, 0.15);
       border-color: rgba(66, 133, 244, 0.4);
       color: #ffffff;
-      transform: translateY(-1px);
     }
 
     /* Message Stream */
     .ag-messages-stream {
-      padding: 16px;
+      padding: 14px;
       display: flex;
       flex-direction: column;
-      gap: 18px;
-      min-height: 220px;
+      gap: 14px;
+      min-height: 200px;
     }
 
     .ag-msg-row {
       display: flex;
-      gap: 12px;
+      gap: 10px;
       width: 100%;
-      animation: ag-fade-in 0.25s ease-out;
+      animation: ag-fade-in 0.2s ease-out;
     }
 
     @keyframes ag-fade-in {
@@ -508,35 +528,35 @@
     }
 
     .ag-msg-avatar {
-      width: 32px;
-      height: 32px;
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
       flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.95rem;
+      font-size: 0.82rem;
     }
 
     .ag-msg-row.assistant .ag-msg-avatar {
       background: var(--ag-gemini-gradient);
       color: #ffffff;
-      box-shadow: 0 0 10px var(--ag-gemini-glow);
+      box-shadow: 0 0 8px var(--ag-gemini-glow);
     }
 
     .ag-msg-content-wrap {
       display: flex;
       flex-direction: column;
-      max-width: 82%;
-      gap: 4px;
+      max-width: 84%;
+      gap: 3px;
     }
 
     .ag-msg-meta {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       font-family: var(--ag-font-mono);
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       color: var(--ag-text-dim);
     }
 
@@ -545,9 +565,9 @@
     }
 
     .ag-msg-bubble {
-      padding: 12px 16px;
-      font-size: 0.92rem;
-      line-height: 1.6;
+      padding: 10px 14px;
+      font-size: 0.90rem;
+      line-height: 1.55;
       word-break: break-word;
     }
 
@@ -555,20 +575,20 @@
       background: #1e293b;
       border: 1px solid rgba(255, 255, 255, 0.12);
       color: #ffffff;
-      border-radius: 18px 18px 4px 18px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      border-radius: 16px 16px 3px 16px;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
     }
 
     .ag-msg-row.assistant .ag-msg-bubble {
       background: #111827;
       border: 1px solid var(--ag-border);
       color: #e2e8f0;
-      border-radius: 4px 18px 18px 18px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+      border-radius: 3px 16px 16px 16px;
+      box-shadow: 0 3px 16px rgba(0, 0, 0, 0.35);
     }
 
     .ag-msg-bubble p {
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
     .ag-msg-bubble p:last-child {
       margin-bottom: 0;
@@ -580,31 +600,31 @@
     }
 
     .ag-msg-bubble ul, .ag-msg-bubble ol {
-      margin: 6px 0 8px 20px;
+      margin: 4px 0 6px 16px;
     }
 
     .ag-msg-bubble li {
-      margin-bottom: 4px;
+      margin-bottom: 3px;
     }
 
     .ag-msg-actions {
       display: flex;
       align-items: center;
-      gap: 6px;
-      margin-top: 4px;
+      gap: 5px;
+      margin-top: 3px;
     }
 
     .ag-action-btn {
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--ag-border-subtle);
       color: var(--ag-text-muted);
-      font-size: 0.72rem;
-      padding: 3px 8px;
-      border-radius: 6px;
+      font-size: 0.70rem;
+      padding: 2px 7px;
+      border-radius: 4px;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 3px;
       transition: all 0.15s ease;
     }
 
@@ -618,20 +638,20 @@
     .ag-thinking-state {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 10px 16px;
-      border-radius: 12px;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 10px;
       background: rgba(66, 133, 244, 0.08);
       border: 1px dashed rgba(66, 133, 244, 0.35);
       color: #93c5fd;
-      font-size: 0.82rem;
+      font-size: 0.78rem;
       width: fit-content;
-      margin: 8px 16px;
+      margin: 6px 14px;
     }
 
     .ag-thinking-spinner {
-      width: 16px;
-      height: 16px;
+      width: 14px;
+      height: 14px;
       border: 2px solid rgba(66, 133, 244, 0.25);
       border-top-color: var(--ag-gemini-blue);
       border-radius: 50%;
@@ -642,17 +662,22 @@
       to { transform: rotate(360deg); }
     }
 
-    /* Sticky Bottom Input Bar (Google Antigravity Floating Prompt Bar) */
+    /* =========================================================================
+       3. Bottom Fixed Chat Input Bar (Always Fixed at Bottom)
+       ========================================================================= */
     .ag-input-dock {
-      position: sticky;
+      position: fixed;
       bottom: 0;
-      z-index: 80;
-      background: rgba(11, 15, 23, 0.92);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-      border-top: 1px solid var(--ag-border);
-      padding: 12px 16px;
+      left: 0;
+      right: 0;
       width: 100%;
+      z-index: 1000;
+      background: rgba(11, 15, 23, 0.94);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid var(--ag-border);
+      padding: 8px 14px;
+      padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     }
 
     .ag-input-dock-inner {
@@ -664,17 +689,17 @@
       background: rgba(18, 24, 38, 0.95);
       border: 1px solid var(--ag-border);
       border-radius: 24px;
-      padding: 6px 10px 6px 14px;
+      padding: 4px 8px 4px 12px;
       display: flex;
       align-items: center;
       gap: 8px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
       transition: all 0.2s ease;
     }
 
     .ag-prompt-box:focus-within {
       border-color: var(--ag-border-focus);
-      box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.25), 0 6px 24px rgba(0, 0, 0, 0.45);
+      box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.25), 0 4px 20px rgba(0, 0, 0, 0.5);
     }
 
     .ag-input-field {
@@ -684,7 +709,7 @@
       outline: none;
       color: #ffffff;
       font-family: var(--ag-font-main);
-      font-size: 0.94rem;
+      font-size: 0.92rem;
       padding: 6px 4px;
     }
 
@@ -696,15 +721,16 @@
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid var(--ag-border-subtle);
       color: var(--ag-text-muted);
-      width: 36px;
-      height: 36px;
+      width: 34px;
+      height: 34px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      font-size: 1.05rem;
+      font-size: 1.0rem;
       transition: all 0.2s ease;
+      flex-shrink: 0;
     }
 
     .btn-ag-mic:hover {
@@ -721,7 +747,7 @@
 
     @keyframes ag-mic-pulse {
       0%, 100% { box-shadow: 0 0 0 rgba(244, 63, 94, 0.5); }
-      50% { box-shadow: 0 0 14px rgba(244, 63, 94, 0.8); }
+      50% { box-shadow: 0 0 12px rgba(244, 63, 94, 0.8); }
     }
 
     .btn-ag-send {
@@ -729,21 +755,22 @@
       border: none;
       color: #ffffff;
       font-family: var(--ag-font-main);
-      font-size: 0.84rem;
+      font-size: 0.82rem;
       font-weight: 600;
-      padding: 8px 18px;
-      border-radius: 20px;
+      padding: 7px 16px;
+      border-radius: 18px;
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       transition: all 0.2s ease;
-      box-shadow: 0 2px 10px rgba(66, 133, 244, 0.35);
+      box-shadow: 0 2px 8px rgba(66, 133, 244, 0.35);
+      flex-shrink: 0;
     }
 
     .btn-ag-send:hover {
       transform: scale(1.02);
-      box-shadow: 0 4px 16px rgba(66, 133, 244, 0.55);
+      box-shadow: 0 4px 14px rgba(66, 133, 244, 0.55);
     }
 
     .btn-ag-send:disabled {
@@ -753,56 +780,125 @@
       box-shadow: none;
     }
 
-    /* Mobile Responsive Adaptation */
-    @media (max-width: 680px) {
-      .ag-nav-bar {
-        padding: 8px 12px;
+    /* =========================================================================
+       4. Mobile Specific Optimizations (Icon-first compact bar, responsive dossier)
+       ========================================================================= */
+    @media (max-width: 640px) {
+      :root {
+        --header-height: 48px;
+        --footer-height: 60px;
       }
+
+      .ag-nav-bar {
+        padding: 0 10px;
+        gap: 6px;
+      }
+
+      .ag-nav-left {
+        gap: 6px;
+      }
+
+      .btn-ag-back {
+        padding: 5px 9px;
+        font-size: 0.88rem;
+      }
+      .btn-ag-back span.back-text {
+        display: none; /* Hanya tampilkan ikon panah di layar HP */
+      }
+
       .ag-brand-title span.sub {
         display: none;
       }
+      .ag-brand-title {
+        font-size: 0.88rem;
+      }
+
+      /* Compact icon-first model chip on mobile */
       .ag-model-chip {
+        padding: 3px 7px;
         font-size: 0.68rem;
-        padding: 4px 9px;
+        gap: 4px;
+        max-width: 140px;
+        overflow: hidden;
       }
+      .ag-provider-text {
+        display: none; /* Sembunyikan kata panjang, cukup badge model dan dot */
+      }
+      .ag-status-indicator span:last-child {
+        display: none; /* Sembunyikan tulisan 'Online' */
+      }
+      .ag-model-badge {
+        padding: 0 4px;
+        font-size: 0.64rem;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        white-space: nowrap;
+        max-width: 95px;
+      }
+
       .ag-workspace {
-        padding: 10px;
+        padding: 8px 10px;
       }
+
+      /* Dossier compact on mobile */
       .ag-artifact-body {
         grid-template-columns: 1fr;
-        gap: 12px;
+        gap: 10px;
+        padding: 10px;
       }
       .ag-photo-box {
-        max-height: 180px;
+        max-height: 140px;
         aspect-ratio: 16 / 9;
       }
       .ag-dossier-grid {
         grid-template-columns: 1fr;
+        gap: 6px;
       }
+      .ag-dossier-item {
+        padding: 6px 8px;
+      }
+
       .ag-msg-content-wrap {
-        max-width: 90%;
+        max-width: 88%;
+      }
+      .ag-msg-bubble {
+        padding: 8px 12px;
+        font-size: 0.86rem;
+      }
+
+      .btn-ag-send span.send-text {
+        display: none; /* Hanya ikon sparkle di tombol kirim HP */
+      }
+      .btn-ag-send {
+        padding: 7px 11px;
+      }
+
+      .ag-input-dock {
+        padding: 6px 10px;
+        padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
       }
     }
   </style>
 </head>
 <body>
 
-  <!-- Top Google Antigravity Navigation Bar -->
+  <!-- 1. Top Fixed Navigation Bar -->
   <header class="ag-nav-bar">
     <div class="ag-nav-left">
       <a href="{{ base_path }}/" class="btn-ag-back" title="Kembali ke Kokpit Kamera">
-        <span>← Kokpit</span>
+        <span>←</span>
+        <span class="back-text">Kokpit</span>
       </a>
       <div class="ag-brand-group">
         <div class="ag-sparkle-logo">✦</div>
         <div class="ag-brand-title">
-          <span>Antigravity</span>
-          <span class="sub">// Benggala Vision</span>
+          <span>Nirmala AI</span>
+          <span class="sub">// Vision</span>
         </div>
       </div>
     </div>
 
-    <!-- Active AI Provider & Model Chip (Prominently Displayed) -->
+    <!-- Active AI Provider & Model Chip (Compact & Responsive) -->
     <div class="ag-model-chip" id="topModelChip" title="AI Provider & Model yang Sedang Aktif">
       <span class="ag-model-sparkle">✦</span>
       <span class="ag-provider-text" id="activeProviderText">{{ active_provider }}</span>
@@ -814,10 +910,10 @@
     </div>
   </header>
 
-  <!-- Main Content Workspace -->
+  <!-- 2. Scrollable Middle Workspace -->
   <main class="ag-workspace">
 
-    <!-- Object Context Artifact Card (Antigravity Style) -->
+    <!-- Object Context Artifact Card -->
     <section class="ag-artifact-card" id="artifactCard">
       <div class="ag-artifact-header" id="artifactHeader" title="Klik untuk Buka/Tutup Dossier Objek">
         <div class="ag-artifact-title-row">
@@ -828,7 +924,7 @@
           <span class="ag-pill-tag ag-tag-cat" id="badgeScore" style="display: none;">100%</span>
         </div>
         <button type="button" class="ag-btn-toggle-dossier" id="btnToggleDossier">
-          <span id="toggleDossierLabel">Tutup Dossier</span>
+          <span id="toggleDossierLabel">Dossier</span>
           <span id="toggleDossierArrow">▲</span>
         </button>
       </div>
@@ -864,11 +960,11 @@
       </div>
     </section>
 
-    <!-- Google Antigravity Interactive Chat Card -->
+    <!-- Nirmala AI Interactive Chat Card -->
     <section class="ag-chat-card">
       <div class="ag-chat-header">
         <div class="ag-chat-title-group">
-          <h3>✦ Konsultasi & Interaksi AI</h3>
+          <h3>✦ Konsultasi Nirmala AI</h3>
           <p>Tanyakan kegunaan, spesifikasi, tips penanganan, atau aspek keselamatan objek ini.</p>
         </div>
       </div>
@@ -902,7 +998,7 @@
               <span id="welcomeModelTag">{{ active_provider }} ({{ active_model }})</span>
             </div>
             <div class="ag-msg-bubble" id="welcomeMsgBubble">
-              Halo! Saya adalah asisten Antigravity AI. Saya telah mencatat konteks objek yang Anda kunci di kamera. Silakan tanyakan hal apa saja yang ingin Anda ketahui mengenai fungsi, spesifikasi, maupun keamanannya.
+              Halo! Saya adalah asisten <strong>Nirmala AI</strong>. Saya telah mengamati objek yang Anda kunci di kamera. Silakan tanyakan hal apa saja yang ingin Anda ketahui mengenai fungsi, spesifikasi, maupun keamanannya.
             </div>
             <div class="ag-msg-actions">
               <button type="button" class="ag-action-btn" onclick="speakText(this)">🔊 Dengar</button>
@@ -915,22 +1011,22 @@
       <!-- Thinking State -->
       <div class="ag-thinking-state" id="thinkingState" style="display: none;">
         <div class="ag-thinking-spinner"></div>
-        <span id="thinkingLabel">Antigravity AI sedang memproses jawaban...</span>
+        <span id="thinkingLabel">Nirmala AI sedang memproses jawaban...</span>
       </div>
     </section>
 
   </main>
 
-  <!-- Sticky Bottom Antigravity Prompt Bar -->
+  <!-- 3. Bottom Fixed Chat Input Bar (Always Fixed at Bottom) -->
   <footer class="ag-input-dock">
     <div class="ag-input-dock-inner">
       <div class="ag-prompt-box">
         <button type="button" class="btn-ag-mic" id="btnAgMic" title="Voice Input (Mikrofon)">
           🎤
         </button>
-        <input type="text" id="agChatInput" class="ag-input-field" placeholder="Tanyakan apa saja tentang objek ini..." autocomplete="off">
+        <input type="text" id="agChatInput" class="ag-input-field" placeholder="Tanyakan pada Nirmala AI..." autocomplete="off">
         <button type="button" id="btnAgSend" class="btn-ag-send" title="Kirim Pertanyaan">
-          <span>Kirim</span>
+          <span class="send-text">Kirim</span>
           <span>✦</span>
         </button>
       </div>
@@ -973,7 +1069,7 @@
             category: 'OBJEK',
             utility: 'Objek berhasil dideteksi dan dikunci dari kamera.',
             detail: 'Data ciri awal dipindai oleh modul visi komputer.',
-            extra_tip: 'Tanyakan kepada Antigravity AI untuk panduan spesifik.',
+            extra_tip: 'Tanyakan kepada Nirmala AI untuk panduan spesifik.',
             safety: 'aman',
             safetyNote: 'Aman dalam penggunaan normal.',
             source: 'AI LIVE',
@@ -988,7 +1084,7 @@
       function renderDossier(item) {
         try {
           const title = item.title || item.label || 'Objek Terpindai';
-          document.title = `${title} // Antigravity AI`;
+          document.title = `${title} // Nirmala AI`;
           
           const titleEl = document.getElementById('dossierTitle');
           if (titleEl) titleEl.textContent = title;
@@ -1032,7 +1128,7 @@
           if (detailEl) detailEl.textContent = item.detail || 'Data ciri visual dalam evaluasi.';
 
           const tipEl = document.getElementById('dossierExtraTip');
-          if (tipEl) tipEl.textContent = item.extra_tip || 'Gunakan sesuai instruksi dan standar penggunaan.';
+          if (tipEl) tipEl.textContent = item.extra_tip || 'Gunakan sesuai petunjuk dan standar penggunaan.';
 
           const noteEl = document.getElementById('dossierSafetyNote');
           if (noteEl) noteEl.textContent = item.safetyNote || 'Amati secara saksama.';
@@ -1054,13 +1150,13 @@
           // Update Welcome Message
           const welcomeBubble = document.getElementById('welcomeMsgBubble');
           if (welcomeBubble) {
-            welcomeBubble.innerHTML = `Halo! Saya adalah asisten <strong>Antigravity AI</strong>. Saya telah mengamati objek <strong>${escapeHtml(title)}</strong> (${escapeHtml(item.category || 'OBJEK')}). Silakan tanyakan kegunaan, spesifikasi, tips perawatan, atau aspek keselamatan yang ingin Anda ketahui.`;
+            welcomeBubble.innerHTML = `Halo! Saya adalah asisten <strong>Nirmala AI</strong>. Saya telah mengamati objek <strong>${escapeHtml(title)}</strong> (${escapeHtml(item.category || 'OBJEK')}). Silakan tanyakan kegunaan, spesifikasi, tips perawatan, atau aspek keselamatan yang ingin Anda ketahui.`;
           }
 
           // Input placeholder update
           const inputField = document.getElementById('agChatInput');
           if (inputField) {
-            inputField.placeholder = `Tanyakan apa saja tentang ${title}...`;
+            inputField.placeholder = `Tanyakan pada Nirmala AI tentang ${title}...`;
           }
         } catch (err) {
           console.error('Error in renderDossier:', err);
@@ -1126,8 +1222,8 @@
           avatarHtml = `<div class="ag-msg-avatar">✦</div>`;
         }
 
-        const pName = providerInfo || currentActiveProvider;
-        const mName = modelInfo || currentActiveModel;
+        const pName = providerInfo || currentActiveProvider || 'Nirmala AI';
+        const mName = modelInfo || currentActiveModel || 'AI';
         const metaTag = isUser ? 'Anda' : `✦ ${pName} (${mName})`;
 
         const actionsHtml = isUser ? '' : `
@@ -1215,7 +1311,7 @@
           }
         } catch (err) {
           console.error('Chat AI error:', err);
-          appendMessage('assistant', `⚠️ Terjadi kendala saat menghubungi model AI (${err.message}). Silakan periksa koneksi atau coba beberapa saat lagi.`);
+          appendMessage('assistant', `⚠️ Terjadi kendala saat menghubungi model Nirmala AI (${err.message}). Silakan periksa koneksi atau coba beberapa saat lagi.`);
         } finally {
           if (thinkingEl) thinkingEl.style.display = 'none';
           if (sendBtn) sendBtn.disabled = false;
@@ -1293,11 +1389,12 @@
         const labelEl = document.getElementById('toggleDossierLabel');
         const arrowEl = document.getElementById('toggleDossierArrow');
 
+        // Di layar mobile (< 640px), biarkan dossier compact terbuka atau tertutup dengan satu ketukan
         function toggleDossier(e) {
           if (e) e.stopPropagation();
           if (!bodyEl) return;
           const isCollapsed = bodyEl.classList.toggle('is-collapsed');
-          if (labelEl) labelEl.textContent = isCollapsed ? 'Buka Dossier' : 'Tutup Dossier';
+          if (labelEl) labelEl.textContent = isCollapsed ? 'Dossier' : 'Tutup';
           if (arrowEl) arrowEl.textContent = isCollapsed ? '▼' : '▲';
         }
 

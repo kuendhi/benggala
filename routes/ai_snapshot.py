@@ -1050,8 +1050,8 @@ def chat_item_ai():
     safety_note = str(item_ctx.get('safetyNote') or '-').strip()
 
     system_prompt = (
-        "Anda adalah Benggala Tactical AI, asisten analitik cerdas yang mendampingi pengguna "
-        "dalam memeriksa objek hasil deteksi/kuncian kamera secara interaktif.\n"
+        "Anda adalah Nirmala AI, asisten analitik cerdas yang ramah, santun, solutif, dan ahli "
+        "dalam mendampingi pengguna memeriksa objek hasil deteksi kamera secara interaktif.\n"
         f"Konteks Objek yang Sedang Diperiksa:\n"
         f"• Nama/Label: {title}\n"
         f"• Kategori: {category}\n"
@@ -1059,7 +1059,7 @@ def chat_item_ai():
         f"• Informasi/Material: {detail}\n"
         f"• Keamanan: {safety} ({safety_note})\n\n"
         "Petunjuk Respon:\n"
-        "1. Jawab pertanyaan pengguna dengan ramah, lugas, akurat, dan solutif dalam Bahasa Indonesia.\n"
+        "1. Jawab pertanyaan pengguna dengan ramah, santun, lugas, akurat, dan solutif dalam Bahasa Indonesia.\n"
         "2. Jika ditanya tentang fungsi, perawatan, nilai, atau risiko, jelaskan secara praktis dan terstruktur.\n"
         "3. Gunakan formatting Markdown (bullet points, bold) agar mudah dibaca pada layar HP/laptop.\n"
         "4. Selalu prioritaskan keselamatan pengguna jika objek berpotensi berbahaya atau berisiko."
@@ -1069,7 +1069,7 @@ def chat_item_ai():
     convo_parts = []
     if isinstance(history, list):
         for h in history[-6:]:
-            role = 'User' if h.get('role') in ('user', 'human') else 'Benggala AI'
+            role = 'User' if h.get('role') in ('user', 'human') else 'Nirmala AI'
             text = str(h.get('content') or '').strip()
             if text:
                 convo_parts.append(f"{role}: {text}")
@@ -1084,7 +1084,7 @@ def chat_item_ai():
     deepseek_model = (settings.get('deepseek_model') or os.getenv('DEEPSEEK_MODEL') or 'deepseek-chat').strip()
 
     reply_text = ""
-    provider_used = "Benggala Local AI"
+    provider_used = "Nirmala AI"
     model_used = "Rule-based Engine"
 
     # Bersihkan image_b64 jika ada
@@ -1105,7 +1105,7 @@ def chat_item_ai():
         )
         if success and out.strip():
             reply_text = out.strip()
-            provider_used = "Google Gemini"
+            provider_used = "Nirmala AI (Gemini)"
             model_used = gemini_model
 
     # 2. Fallback ke DeepSeek jika Gemini belum berhasil
@@ -1118,7 +1118,7 @@ def chat_item_ai():
         )
         if success and out.strip():
             reply_text = out.strip()
-            provider_used = "DeepSeek AI"
+            provider_used = "Nirmala AI (DeepSeek)"
             model_used = deepseek_model
 
     # 3. Fallback cerdas offline jika tidak ada API key yang aktif
@@ -1138,7 +1138,7 @@ def chat_item_ai():
                 f"• **Status:** {safety.capitalize()} ({safety_note})\n\n"
                 "Silakan ajukan pertanyaan lebih spesifik mengenai kegunaan, spesifikasi, atau cara penanganannya."
             )
-        provider_used = "Benggala Local AI"
+        provider_used = "Nirmala AI (Lokal)"
         model_used = "Rule-based Engine"
 
     return jsonify({
