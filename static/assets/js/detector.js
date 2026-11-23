@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const modelStatus = document.getElementById('modelStatus');
   const video = document.getElementById('webcam');
   const canvas = document.getElementById('overlay');
+  const overlay = canvas;
   const ctx = canvas.getContext('2d');
   
   const btnStart = document.getElementById('btnStart');
@@ -965,16 +966,23 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Sinkronisasi dimensi canvas pada loadedmetadata & window resize / rotasi HP
-  video.addEventListener('loadedmetadata', syncCanvasDimensions);
-  window.addEventListener('resize', syncCanvasDimensions);
+  const handleViewportChange = () => {
+    syncCanvasDimensions();
+    if (window.BenggalaAutoLock && typeof window.BenggalaAutoLock.resetTrackingCoords === 'function') {
+      window.BenggalaAutoLock.resetTrackingCoords();
+    }
+  };
+
+  video.addEventListener('loadedmetadata', handleViewportChange);
+  window.addEventListener('resize', handleViewportChange);
   window.addEventListener('orientationchange', () => {
-    setTimeout(syncCanvasDimensions, 80);
-    setTimeout(syncCanvasDimensions, 250);
+    setTimeout(handleViewportChange, 80);
+    setTimeout(handleViewportChange, 250);
   });
   if (screen.orientation && typeof screen.orientation.addEventListener === 'function') {
     screen.orientation.addEventListener('change', () => {
-      setTimeout(syncCanvasDimensions, 80);
-      setTimeout(syncCanvasDimensions, 250);
+      setTimeout(handleViewportChange, 80);
+      setTimeout(handleViewportChange, 250);
     });
   }
 
@@ -1046,7 +1054,7 @@ document.addEventListener('DOMContentLoaded', () => {
    * Pembungkus inferensi COCO-SSD berpelindung timeout (Watchdog)
    * Mencegah thread inferensi atau WebGL macet/hang permanen saat kamera digerakkan
    */
-  function detectWithTimeout(canvasEl, maxBoxes, minScore, timeoutMs = 1200) {
+  function detectWithTimeout(canvasEl, maxBoxes, minScore, timeoutMs = 4000) {
     let timerId = null;
     const timeoutPromise = new Promise((_, reject) => {
       timerId = setTimeout(() => {
@@ -1194,14 +1202,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Jalankan inferensi COCO-SSD berpelindung timeout (maks 20 objek)
     let rawDetections = [];
     try {
-      rawDetections = await detectWithTimeout(aiScanCanvas, 20, detectMinScore, 1200);
+      rawDetections = await detectWithTimeout(aiScanCanvas, 20, detectMinScore, 4000);
       lastInferenceSuccessTime = performance.now();
       consecutiveInferenceErrors = 0;
     } catch (err) {
       consecutiveInferenceErrors++;
       console.warn(`[AI Loop] Inference timeout/error #${consecutiveInferenceErrors}:`, err.message || err);
-      if (consecutiveInferenceErrors >= 2) {
-        // Bersihkan bounding box basi jika inferensi macet 2x berturut-turut
+      if (consecutiveInferenceErrors >= 3) {
+        // Bersihkan bounding box basi jika inferensi macet 3x berturut-turut
         activePredictionsForRender = [];
         currentPredictions = [];
         lastPredictions = [];
@@ -1332,177 +1340,182 @@ document.addEventListener('DOMContentLoaded', () => {
     const renderLoop = () => {
       if (!isStreaming) return;
 
-      // Cek sinkronisasi buffer canvas secara instan tanpa memicu forced layout reflow
-      if (video.videoWidth && video.videoHeight) {
-        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-        }
-      }
-
-      // Hitung FPS Rendering Real-Time
-      const now = performance.now();
-      renderFrameCount++;
-      if (now - lastFpsUpdate >= 500) {
-        currentFps = Math.round((renderFrameCount * 1000) / (now - lastFpsUpdate));
-        renderFrameCount = 0;
-        lastFpsUpdate = now;
-      }
-
-      const predictionsSource = activePredictionsForRender || [];
-      let displayPredictions = predictionsSource;
-
-      // Watchdog pembersih kotak macet saat kamera digerakkan:
-      // Jika kamera digerakkan ke area kosong atau inferensi belum update > 650ms,
-      // hilangkan render box agar tidak ada kotak hang di layar
-      if (now - lastInferenceSuccessTime > 650 && displayPredictions.length > 0) {
-        displayPredictions = [];
-        activePredictionsForRender = [];
-      }
-
-      // Evaluasi Filter Fokus & Auto-Lock Target (Klik 2x / Sentuh)
-      let focusedObject = null;
-      if (focusState.active && focusState.targetClass) {
-        if (predictionsSource.length > 0) {
-          let bestScore = Infinity;
-
-          predictionsSource.forEach(pred => {
-            const [bx, by, bw, bh] = pred.bbox;
-            const midX = bx + bw / 2;
-            const midY = by + bh / 2;
-            const dist = Math.hypot(midX - focusState.canvasX, midY - focusState.canvasY);
-
-            const isInside = (
-              focusState.canvasX >= bx && focusState.canvasX <= bx + bw &&
-              focusState.canvasY >= by && focusState.canvasY <= by + bh
-            );
-            const classMatch = (pred.class === focusState.targetClass);
-
-            let score = dist;
-            if (isInside) score -= 100;
-            if (classMatch) score -= 200;
-
-            if (score < bestScore) {
-              bestScore = score;
-              focusedObject = pred;
-            }
-          });
+      try {
+        // Cek sinkronisasi buffer canvas secara instan tanpa memicu forced layout reflow
+        if (video.videoWidth && video.videoHeight) {
+          if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+          }
         }
 
-        if (focusedObject) {
-          const [fbx, fby, fbw, fbh] = focusedObject.bbox;
-          const targetMidX = fbx + fbw / 2;
-          const targetMidY = fby + fbh / 2;
+        // Hitung FPS Rendering Real-Time
+        const now = performance.now();
+        renderFrameCount++;
+        if (now - lastFpsUpdate >= 500) {
+          currentFps = Math.round((renderFrameCount * 1000) / (now - lastFpsUpdate));
+          renderFrameCount = 0;
+          lastFpsUpdate = now;
+        }
 
-          // Smooth tracking titik fokus ke titik tengah target (Lerp 60 FPS)
-          const TRACK_LERP = 0.25;
-          focusState.canvasX += (targetMidX - focusState.canvasX) * TRACK_LERP;
-          focusState.canvasY += (targetMidY - focusState.canvasY) * TRACK_LERP;
+        const predictionsSource = activePredictionsForRender || [];
+        let displayPredictions = predictionsSource;
 
-          const screenCoords = canvasToClientCoords(focusState.canvasX, focusState.canvasY);
-          updateFocusReticlePosition(screenCoords.x, screenCoords.y);
+        // Safety Net Watchdog: Jika inferensi tidak menghasilkan frame baru selama > 3.0 detik,
+        // bersihkan render box secara aman (hindari pembersihan terlalu cepat yang merusak lock 6s)
+        if (now - lastInferenceSuccessTime > 3000 && displayPredictions.length > 0) {
+          displayPredictions = [];
+          activePredictionsForRender = [];
+        }
 
-          displayPredictions = [focusedObject];
-        } else {
-          if (focusState.canvasX !== null && focusState.canvasY !== null) {
+        // Evaluasi Filter Fokus & Auto-Lock Target (Klik 2x / Sentuh)
+        let focusedObject = null;
+        if (focusState.active && focusState.targetClass) {
+          if (predictionsSource.length > 0) {
+            let bestScore = Infinity;
+
+            predictionsSource.forEach(pred => {
+              const [bx, by, bw, bh] = pred.bbox;
+              const midX = bx + bw / 2;
+              const midY = by + bh / 2;
+              const dist = Math.hypot(midX - focusState.canvasX, midY - focusState.canvasY);
+
+              const isInside = (
+                focusState.canvasX >= bx && focusState.canvasX <= bx + bw &&
+                focusState.canvasY >= by && focusState.canvasY <= by + bh
+              );
+              const classMatch = (pred.class === focusState.targetClass);
+
+              let score = dist;
+              if (isInside) score -= 100;
+              if (classMatch) score -= 200;
+
+              if (score < bestScore) {
+                bestScore = score;
+                focusedObject = pred;
+              }
+            });
+          }
+
+          if (focusedObject) {
+            const [fbx, fby, fbw, fbh] = focusedObject.bbox;
+            const targetMidX = fbx + fbw / 2;
+            const targetMidY = fby + fbh / 2;
+
+            // Smooth tracking titik fokus ke titik tengah target (Lerp 60 FPS)
+            const TRACK_LERP = 0.25;
+            focusState.canvasX += (targetMidX - focusState.canvasX) * TRACK_LERP;
+            focusState.canvasY += (targetMidY - focusState.canvasY) * TRACK_LERP;
+
             const screenCoords = canvasToClientCoords(focusState.canvasX, focusState.canvasY);
             updateFocusReticlePosition(screenCoords.x, screenCoords.y);
-          }
-          displayPredictions = [];
-        }
-      }
 
-      // Prediksi yang diteruskan ke sistem Rudal Udara (Air-to-Air Missile Radar)
-      // Kamera berfungsi mandiri sebagai radar pencari objek terdekat di viewport
-      const autoLockPredictions = (focusState.active && focusState.targetClass)
-        ? (focusedObject ? [focusedObject] : [])
-        : displayPredictions;
-
-      // Simpan referensi objek aktif utama untuk modul training (Task 16B)
-      latestActivePrediction = (displayPredictions && displayPredictions.length > 0) ? displayPredictions[0] : null;
-
-      // Sinkronkan label KNN aktif jika ada
-      if (latestActivePrediction && lastKnnMatch && (now - lastKnnMatchTime < 800)) {
-        latestActivePrediction.customLabel = lastKnnMatch.label;
-        latestActivePrediction.isCustom = true;
-        latestActivePrediction.class = lastKnnMatch.label;
-      }
-
-      // Render Bounding Box dengan Lerp Smoothing di 60 FPS
-      renderPredictions(displayPredictions);
-
-      // Update & Gambar Auto-Lock Target (Fase 1: Cyan -> Fase 2: Amber -> Fase 3: Hijau)
-      if (window.BenggalaAutoLock && window.BenggalaAutoLock.enabled) {
-        window.BenggalaAutoLock.update(
-          autoLockPredictions,
-          now,
-          (lockedTarget) => {
-            // Target berhasil terkunci stabil 6.0s: Berikan feedback visual taktis ringan
-            const objName = typeof window.translateLabel === 'function' ? window.translateLabel(lockedTarget.class) : lockedTarget.class;
-            showToast(`⚡ Target [${objName}] terkunci stabil (6.0s)`, 'success');
-          },
-          canvas.width,
-          canvas.height
-        );
-        window.BenggalaAutoLock.drawLockOverlay(ctx);
-      }
-
-      updateLiveStats(displayPredictions);
-
-      // Update Telemetri & Mini Radar YOULO OS (Throttled ~250ms anti layout-thrashing di HP)
-      if (now - lastTelemetryUpdate >= 250) {
-        lastTelemetryUpdate = now;
-        if (window.BenggalaCockpit && typeof window.BenggalaCockpit.updateTelemetry === 'function') {
-          window.BenggalaCockpit.updateTelemetry({
-            fps: currentFps,
-            predictions: displayPredictions,
-            videoWidth: video.videoWidth || 640,
-            videoHeight: video.videoHeight || 480,
-            threshold: Math.round(minConfidence * 100),
-            pixelsPerCm: pixelsPerCm,
-            isRunning: isStreaming,
-            isCctv: window.BenggalaCCTV ? window.BenggalaCCTV.isActive : false
-          });
-        }
-      }
-
-      // Update Simulasi Sinyal ESP32 jika Overlay Visi 2027 sedang terbuka (Task 13B)
-      if (window.BenggalaRoadmap && typeof window.BenggalaRoadmap.updateLiveEspSim === 'function' && window.BenggalaRoadmap.isOpen()) {
-        window.BenggalaRoadmap.updateLiveEspSim(predictionsSource, video.videoWidth || 640);
-      }
-
-      // HUD AR Callout Futuristik & Garis Konektor (Task 18B & 18D: Hanya Muncul Setelah Terkunci 6 Detik)
-      if (window.BenggalaArCallout) {
-        const isAutoLocked = window.BenggalaAutoLock && typeof window.BenggalaAutoLock.isTargetLocked === 'function' && window.BenggalaAutoLock.isTargetLocked();
-        const isManualFocus = focusState && focusState.active;
-        const isTargetLocked = isAutoLocked || isManualFocus;
-
-        if (isTargetLocked) {
-          const targetToShow = isAutoLocked 
-            ? (window.BenggalaAutoLock.getLockedTarget() || latestActivePrediction) 
-            : latestActivePrediction;
-
-          if (targetToShow) {
-            let currentDimText = '';
-            if (pixelsPerCm && pixelsPerCm > 0 && targetToShow.bbox) {
-              const wCm = (targetToShow.bbox[2] / pixelsPerCm).toFixed(1);
-              const hCm = (targetToShow.bbox[3] / pixelsPerCm).toFixed(1);
-              currentDimText = `${wCm}×${hCm} cm`;
-            }
-            window.BenggalaArCallout.update(targetToShow, canvas, {
-              dimensionsText: currentDimText || '',
-              isLocked: true
-            });
+            displayPredictions = [focusedObject];
           } else {
+            if (focusState.canvasX !== null && focusState.canvasY !== null) {
+              const screenCoords = canvasToClientCoords(focusState.canvasX, focusState.canvasY);
+              updateFocusReticlePosition(screenCoords.x, screenCoords.y);
+            }
+            displayPredictions = [];
+          }
+        }
+
+        // Prediksi yang diteruskan ke sistem Rudal Udara (Air-to-Air Missile Radar)
+        // Kamera berfungsi mandiri sebagai radar pencari objek terdekat di viewport
+        const autoLockPredictions = (focusState.active && focusState.targetClass)
+          ? (focusedObject ? [focusedObject] : [])
+          : displayPredictions;
+
+        // Simpan referensi objek aktif utama untuk modul training (Task 16B)
+        latestActivePrediction = (displayPredictions && displayPredictions.length > 0) ? displayPredictions[0] : null;
+
+        // Sinkronkan label KNN aktif jika ada
+        if (latestActivePrediction && lastKnnMatch && (now - lastKnnMatchTime < 800)) {
+          latestActivePrediction.customLabel = lastKnnMatch.label;
+          latestActivePrediction.isCustom = true;
+          latestActivePrediction.class = lastKnnMatch.label;
+        }
+
+        // Render Bounding Box dengan Lerp Smoothing di 60 FPS
+        renderPredictions(displayPredictions);
+
+        // Update & Gambar Auto-Lock Target (Fase 1: Cyan -> Fase 2: Amber -> Fase 3: Hijau)
+        if (window.BenggalaAutoLock && window.BenggalaAutoLock.enabled) {
+          window.BenggalaAutoLock.update(
+            autoLockPredictions,
+            now,
+            (lockedTarget) => {
+              // Target berhasil terkunci stabil 6.0s: Berikan feedback visual taktis ringan
+              const objName = typeof window.translateLabel === 'function' ? window.translateLabel(lockedTarget.class) : lockedTarget.class;
+              showToast(`⚡ Target [${objName}] terkunci stabil (6.0s)`, 'success');
+            },
+            canvas.width,
+            canvas.height
+          );
+          window.BenggalaAutoLock.drawLockOverlay(ctx);
+        }
+
+        updateLiveStats(displayPredictions);
+
+        // Update Telemetri & Mini Radar YOULO OS (Throttled ~250ms anti layout-thrashing di HP)
+        if (now - lastTelemetryUpdate >= 250) {
+          lastTelemetryUpdate = now;
+          if (window.BenggalaCockpit && typeof window.BenggalaCockpit.updateTelemetry === 'function') {
+            window.BenggalaCockpit.updateTelemetry({
+              fps: currentFps,
+              predictions: displayPredictions,
+              videoWidth: video.videoWidth || 640,
+              videoHeight: video.videoHeight || 480,
+              threshold: Math.round(minConfidence * 100),
+              pixelsPerCm: pixelsPerCm,
+              isRunning: isStreaming,
+              isCctv: window.BenggalaCCTV ? window.BenggalaCCTV.isActive : false
+            });
+          }
+        }
+
+        // Update Simulasi Sinyal ESP32 jika Overlay Visi 2027 sedang terbuka (Task 13B)
+        if (window.BenggalaRoadmap && typeof window.BenggalaRoadmap.updateLiveEspSim === 'function' && window.BenggalaRoadmap.isOpen()) {
+          window.BenggalaRoadmap.updateLiveEspSim(predictionsSource, video.videoWidth || 640);
+        }
+
+        // HUD AR Callout Futuristik & Garis Konektor (Task 18B & 18D: Hanya Muncul Setelah Terkunci 6 Detik)
+        if (window.BenggalaArCallout) {
+          const isAutoLocked = window.BenggalaAutoLock && typeof window.BenggalaAutoLock.isTargetLocked === 'function' && window.BenggalaAutoLock.isTargetLocked();
+          const isManualFocus = focusState && focusState.active;
+          const isTargetLocked = isAutoLocked || isManualFocus;
+
+          if (isTargetLocked) {
+            const targetToShow = isAutoLocked 
+              ? (window.BenggalaAutoLock.getLockedTarget() || latestActivePrediction) 
+              : latestActivePrediction;
+
+            if (targetToShow) {
+              let currentDimText = '';
+              if (pixelsPerCm && pixelsPerCm > 0 && targetToShow.bbox) {
+                const wCm = (targetToShow.bbox[2] / pixelsPerCm).toFixed(1);
+                const hCm = (targetToShow.bbox[3] / pixelsPerCm).toFixed(1);
+                currentDimText = `${wCm}×${hCm} cm`;
+              }
+              window.BenggalaArCallout.update(targetToShow, canvas, {
+                dimensionsText: currentDimText || '',
+                isLocked: true
+              });
+            } else {
+              window.BenggalaArCallout.hide();
+            }
+          } else {
+            // Jangan tampilkan popup saat masih mencari objek atau belum terkunci 6 detik (Ringan & Bebas Beban)
             window.BenggalaArCallout.hide();
           }
-        } else {
-          // Jangan tampilkan popup saat masih mencari objek atau belum terkunci 6 detik (Ringan & Bebas Beban)
-          window.BenggalaArCallout.hide();
+        }
+      } catch (err) {
+        console.error('[RenderLoop] Error recovered safely:', err);
+      } finally {
+        if (isStreaming) {
+          animationFrameId = requestAnimationFrame(renderLoop);
         }
       }
-
-      animationFrameId = requestAnimationFrame(renderLoop);
     };
 
     animationFrameId = requestAnimationFrame(renderLoop);
@@ -2481,36 +2494,48 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   function setCameraOrientation(mode, restartStream = false) {
-    if (!['portrait', 'widescreen', 'auto'].includes(mode)) {
-      mode = 'portrait';
-    }
-    cameraOrientation = mode;
-    localStorage.setItem('benggala_cam_orientation', mode);
-
-    if (btnOrientation) {
-      btnOrientation.textContent = orientIcons[mode] || '📱';
-      btnOrientation.title = `Orientasi Layar: ${orientLabels[mode]} (Klik untuk ganti)`;
-    }
-
-    if (cameraOrientationVal) {
-      cameraOrientationVal.textContent = orientLabels[mode] || 'Portrait (9:16 / Tegak)';
-    }
-
-    orientBtns.forEach(btn => {
-      if (btn.getAttribute('data-orient') === mode) {
-        btn.classList.add('active');
-      } else {
-        btn.classList.remove('active');
+    try {
+      if (!['portrait', 'widescreen', 'auto'].includes(mode)) {
+        mode = 'portrait';
       }
-    });
+      cameraOrientation = mode;
+      localStorage.setItem('benggala_cam_orientation', mode);
 
-    syncCanvasDimensions();
+      if (btnOrientation) {
+        btnOrientation.textContent = orientIcons[mode] || '📱';
+        btnOrientation.title = `Orientasi Layar: ${orientLabels[mode]} (Klik untuk ganti)`;
+      }
 
-    showToast(`📐 Orientasi Layar: ${orientLabels[mode]}`, 'info');
+      if (cameraOrientationVal) {
+        cameraOrientationVal.textContent = orientLabels[mode] || 'Portrait (9:16 / Tegak)';
+      }
 
-    // Jika kamera sedang streaming dan restartStream diminta
-    if (restartStream && isStreaming) {
-      startCamera();
+      orientBtns.forEach(btn => {
+        if (btn.getAttribute('data-orient') === mode) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+
+      syncCanvasDimensions();
+
+      // Reset koordinat tracking kuncian agar tidak terjadi lonjakan posisi (glitch)
+      if (window.BenggalaAutoLock && typeof window.BenggalaAutoLock.resetTrackingCoords === 'function') {
+        window.BenggalaAutoLock.resetTrackingCoords();
+      }
+      if (window.BenggalaArCallout && typeof window.BenggalaArCallout.hide === 'function') {
+        window.BenggalaArCallout.hide();
+      }
+
+      showToast(`📐 Orientasi Layar: ${orientLabels[mode]}`, 'info');
+
+      // Jika kamera sedang streaming dan restartStream diminta
+      if (restartStream && isStreaming) {
+        startCamera();
+      }
+    } catch (err) {
+      console.warn('Gagal mengubah orientasi kamera:', err);
     }
   }
 

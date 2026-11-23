@@ -172,6 +172,15 @@
     },
 
     /**
+     * Reset koordinat interpolasi halus tanpa membatalkan progress kuncian
+     * Digunakan saat orientasi layar atau ukuran viewport berubah mendadak
+     */
+    resetTrackingCoords: function () {
+      this.smoothBox.initialized = false;
+      this.lastMidPoint = { x: 0, y: 0 };
+    },
+
+    /**
      * Update state auto-lock setiap frame deteksi
      * @param {Array} predictions Array objek terdeteksi dari model COCO-SSD
      * @param {number} now Timestamp saat ini
@@ -246,6 +255,9 @@
       }
 
       // 3. Evaluasi Pergeseran Objek (Stability Check: Anti Gerak Berlebih)
+      // Toleransi dinamis: Berikan ruang toleransi gerakan alami tangan ~12% ukuran layar atau 55% ukuran objek
+      const dynamicTolerance = Math.max(85, Math.min(pw, ph) * 0.55, Math.min(canvasWidth, canvasHeight) * 0.12);
+
       if (!this.trackingTarget || this.trackingTarget.class !== primary.class) {
         // Mulai membidik objek baru
         this.trackingTarget = primary;
@@ -257,17 +269,17 @@
       } else {
         // Cek toleransi pergeseran titik tengah
         const shift = Math.hypot(midX - this.lastMidPoint.x, midY - this.lastMidPoint.y);
-        if (shift > this.maxMovePx) {
-          // Objek bergerak terlalu cepat -> batalkan & reset timer 6 detik
+        if (shift > dynamicTolerance) {
+          // Objek berpindah jauh (kamera dipindahkan ke area lain) -> reset timer
           this.lockStartTime = now;
           this.lastMidPoint = { x: midX, y: midY };
           this.state = 'ACQUIRING';
           this.lockedTarget = null;
           this.hasTriggered = false;
         } else {
-          // Objek stabil: perbarui titik tengah secara perlahan
-          this.lastMidPoint.x += (midX - this.lastMidPoint.x) * 0.1;
-          this.lastMidPoint.y += (midY - this.lastMidPoint.y) * 0.1;
+          // Objek stabil / jitter tangan wajar: perbarui titik tengah secara perlahan
+          this.lastMidPoint.x += (midX - this.lastMidPoint.x) * 0.15;
+          this.lastMidPoint.y += (midY - this.lastMidPoint.y) * 0.15;
           this.trackingTarget = primary;
         }
       }
