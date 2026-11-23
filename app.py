@@ -50,6 +50,11 @@ def assets_fallback(filename):
     """Fallback route untuk kompatibilitas jika aset diakses via /assets/..."""
     return send_from_directory('static/assets', filename)
 
+@app.route('/uploads/snapshots/<path:filename>')
+def uploaded_snapshots(filename):
+    """Menyajikan berkas foto snapshot dari direktori uploads/snapshots."""
+    return send_from_directory('uploads/snapshots', filename)
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Endpoint Health Check: status engine Flask dan konektivitas database."""

@@ -136,8 +136,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 4000);
   }
 
-  // Helper untuk membaca CSRF token dari tag <meta name="csrf-token">
+  // Helper untuk membaca CSRF token dari window.CSRF_TOKEN atau tag <meta name="csrf-token">
   function getCsrfToken() {
+    if (window.CSRF_TOKEN) return window.CSRF_TOKEN;
     const meta = document.querySelector('meta[name="csrf-token"]');
     return meta ? meta.getAttribute('content') : '';
   }
@@ -1103,7 +1104,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
-  // 7. Pengiriman Snapshot ke Backend API (api/save_snapshot.php)
+  // 7. Pengiriman Snapshot ke Backend API (/api/snapshot/save)
   // =========================================================================
   async function handleSaveSnapshot(isCctv = false) {
     if (!isStreaming) {
@@ -1143,8 +1144,9 @@ document.addEventListener('DOMContentLoaded', () => {
     btnSnapshot.innerHTML = isCctv ? '📸 CCTV Mengambil...' : '⏳ Menyimpan...';
 
     try {
-      const response = await fetch('api/save_snapshot.php', {
+      const response = await fetch('/api/snapshot/save', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
@@ -1159,7 +1161,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const result = await response.json();
 
-      if (response.ok && result.status === 'success') {
+      if (response.ok && (result.status === 'success' || result.status === 'ok')) {
         let msg = `Snapshot berhasil disimpan (${result.filename})`;
         if (result.telegram_sent) {
           msg += ' ✈️ Foto terkirim ke Telegram!';
@@ -1180,7 +1182,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
-  // 8. Integrasi Smart LLM Router (api/analyze_llm.php)
+  // 8. Integrasi Smart LLM Router (/api/ai/analyze)
   // =========================================================================
   async function handleAnalyzeLLM() {
     if (!btnAnalyzeLLM) return;
@@ -1246,8 +1248,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      const response = await fetch('api/analyze_llm.php', {
+      const response = await fetch('/api/ai/analyze', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
@@ -1258,7 +1261,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const result = await response.json();
 
-      if (response.ok && result.status === 'success') {
+      if (response.ok && (result.status === 'success' || result.status === 'ok')) {
         if (llmProviderBadge) {
           llmProviderBadge.textContent = result.provider_used || provider;
         }
@@ -1385,8 +1388,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      const response = await fetch('api/analyze_llm.php', {
+      const response = await fetch('/api/ai/analyze', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
@@ -1397,7 +1401,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const result = await response.json();
 
-      if (response.ok && result.status === 'success') {
+      if (response.ok && (result.status === 'success' || result.status === 'ok')) {
         if (llmProviderBadge) {
           llmProviderBadge.textContent = result.provider_used || provider;
         }
@@ -1907,12 +1911,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadSettings() {
     try {
-      const res = await fetch('api/settings.php?action=get');
+      const res = await fetch('/api/settings', {
+        method: 'GET',
+        credentials: 'same-origin'
+      });
       const json = await res.json();
-      if (json.status === 'success' && json.data) {
-        const d = json.data;
-        if (setLlmProvider && d.llm_default_provider) {
-          setLlmProvider.value = d.llm_default_provider;
+      const settingsData = json.settings || json.data;
+      if ((json.status === 'success' || json.status === 'ok') && settingsData) {
+        const d = settingsData;
+        if (setLlmProvider && (d.llm_default_provider || d.llm_provider)) {
+          setLlmProvider.value = d.llm_default_provider || d.llm_provider;
         }
         if (setDeepSeekKey && d.deepseek_api_key) {
           setDeepSeekKey.value = d.deepseek_api_key;
@@ -1956,8 +1964,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     try {
-      const res = await fetch('api/settings.php', {
+      const res = await fetch('/api/settings', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
@@ -1968,7 +1977,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const json = await res.json();
 
-      if (res.ok && json.status === 'success') {
+      if (res.ok && (json.status === 'success' || json.status === 'ok')) {
         showToast('Pengaturan sistem & Telegram berhasil disimpan!', 'success');
         if (settingsModal) settingsModal.style.display = 'none';
         loadSettings();
@@ -1977,7 +1986,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (err) {
       console.error('Error saat menyimpan pengaturan:', err);
-      showToast('Koneksi ke api/settings.php gagal.', 'error');
+      showToast('Koneksi ke /api/settings gagal.', 'error');
     } finally {
       btnSaveSettings.disabled = false;
       btnSaveSettings.innerHTML = oldText;
@@ -2014,19 +2023,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!historyGrid) return;
 
     try {
-      const csrfToken = getCsrfToken();
-      const response = await fetch('api/history.php', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-CSRF-Token': csrfToken
-        },
-        body: JSON.stringify({ action: 'list' })
+      const response = await fetch('/api/history', {
+        method: 'GET',
+        credentials: 'same-origin'
       });
 
       const result = await response.json();
-      if (!response.ok || result.status !== 'success') {
+      if (!response.ok || (result.status !== 'success' && result.status !== 'ok')) {
         console.error('Gagal memuat riwayat:', result.message);
         return;
       }
@@ -2064,9 +2067,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const thumbWrapper = document.createElement('div');
         thumbWrapper.className = 'history-thumb-wrapper';
 
+        const formattedPath = (item.file_path || '').startsWith('/') ? item.file_path : ('/' + (item.file_path || ''));
         const img = document.createElement('img');
         img.className = 'history-thumb';
-        img.src = item.file_path;
+        img.src = formattedPath;
         img.alt = item.filename;
         img.loading = 'lazy';
         img.onerror = () => {
@@ -2156,7 +2160,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // View image link
         const viewLink = document.createElement('a');
         viewLink.className = 'btn-view-image';
-        viewLink.href = item.file_path;
+        viewLink.href = formattedPath;
         viewLink.target = '_blank';
         viewLink.rel = 'noopener noreferrer';
         viewLink.textContent = '🔍 Lihat Foto';
@@ -2192,21 +2196,21 @@ document.addEventListener('DOMContentLoaded', () => {
   async function deleteHistoryItem(id) {
     try {
       const csrfToken = getCsrfToken();
-      const response = await fetch('api/history.php', {
+      const response = await fetch('/api/history/delete', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
           'X-CSRF-Token': csrfToken
         },
         body: JSON.stringify({
-          action: 'delete',
           id: id
         })
       });
 
       const result = await response.json();
-      if (response.ok && result.status === 'success') {
+      if (response.ok && (result.status === 'success' || result.status === 'ok')) {
         showToast('Foto dan riwayat berhasil dihapus.', 'success');
         loadHistory();
       } else {
@@ -2221,12 +2225,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Event Listeners untuk Refresh & Export CSV
   if (btnExportCsv) {
     btnExportCsv.addEventListener('click', () => {
-      const csrfToken = getCsrfToken();
-      if (!csrfToken) {
-        showToast('Token CSRF tidak ditemukan. Silakan refresh halaman.', 'error');
-        return;
-      }
-      window.location.href = `api/export_csv.php?csrf_token=${encodeURIComponent(csrfToken)}`;
+      window.location.href = '/api/history/export-csv';
     });
   }
 
