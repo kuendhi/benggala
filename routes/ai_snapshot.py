@@ -42,6 +42,40 @@ def _send_telegram_photo(bot_token: str, chat_id: str, image_bytes: bytes, capti
         return False
 
 # -----------------------------------------------------------------------------
+# Helper: Sanitasi Teks & Kredensial AI
+# -----------------------------------------------------------------------------
+def _mask_in_text(text: str, secret: Optional[str] = None) -> str:
+    """Menyamarkan API key dari teks error atau URL untuk mencegah kebocoran kredensial."""
+    if not text:
+        return ''
+    out = str(text)
+    if secret and len(secret) >= 6:
+        out = out.replace(secret, '****')
+    out = re.sub(r'([?&]key=)[^&\s]+', r'\1****', out)
+    out = re.sub(r'([?&]x-goog-api-key=)[^&\s]+', r'\1****', out)
+    out = re.sub(r'(Bearer\s+)[A-Za-z0-9_\-\.]{8,}', r'\1****', out)
+    return out
+
+def _clean_api_key(key_val: Optional[str], env_var: str) -> str:
+    """Membersihkan API key dan fallback otomatis ke env var jika dummy/placeholder/masked."""
+    def _is_valid(val: Optional[str]) -> bool:
+        if not val:
+            return False
+        v = str(val).strip()
+        if not v or '****' in v or v.startswith('ISI_') or 'DemoKey' in v or 'FakeKey' in v or len(v) < 8:
+            return False
+        return True
+
+    if _is_valid(key_val):
+        return str(key_val).strip()
+
+    env_val = os.getenv(env_var, '').strip()
+    if _is_valid(env_val):
+        return env_val
+
+    return ""
+
+# -----------------------------------------------------------------------------
 # Helper: Pencarian Referensi Visual Few-Shot dari custom_objects (Task 16C)
 # -----------------------------------------------------------------------------
 def _get_reference_samples(custom_label: str = '', objects_text: str = '', category: str = '', limit: int = 3) -> List[Dict[str, Any]]:
@@ -51,7 +85,10 @@ def _get_reference_samples(custom_label: str = '', objects_text: str = '', categ
     """
     clean_custom_label = str(custom_label or '').replace('★', '').strip()
     clean_category = str(category or '').strip().lower()
-    
+
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    knowledge_dir = os.path.join(base_dir, 'uploads', 'knowledge')
+
     references = []
     seen_ids = set()
 
@@ -133,35 +170,39 @@ def _get_reference_samples(custom_label: str = '', objects_text: str = '', categ
 
     # Validasi fisik berkas gambar & konversi ke Base64 (dibatasi maks 300 KB per referensi)
     valid_samples = []
-    for row in references[:limit]:
-        raw_path = row.get('image_path') or ''
-        clean_name = sanitize_filename(os.path.basename(raw_path))
-        file_path = os.path.join(KNOWLEDGE_DIR, clean_name)
+    try:
+        for row in references[:limit]:
+            try:
+                raw_path = row.get('image_path') or ''
+                clean_name = sanitize_filename(os.path.basename(raw_path))
+                file_path = os.path.join(knowledge_dir, clean_name)
 
-        if not os.path.isfile(file_path):
-            continue
+                if not os.path.isfile(file_path):
+                    continue
 
-        try:
-            file_size = os.path.getsize(file_path)
-            if file_size > 300 * 1024:
-                # Kompresi on-the-fly jika berkas referensi melebihi 300 KB
-                with Image.open(file_path) as im:
-                    buf = io.BytesIO()
-                    im.save(buf, format='JPEG', quality=75)
-                    b64_data = base64.b64encode(buf.getvalue()).decode('utf-8')
-            else:
-                with open(file_path, 'rb') as f:
-                    b64_data = base64.b64encode(f.read()).decode('utf-8')
+                file_size = os.path.getsize(file_path)
+                if file_size > 300 * 1024:
+                    # Kompresi on-the-fly jika berkas referensi melebihi 300 KB
+                    with Image.open(file_path) as im:
+                        buf = io.BytesIO()
+                        im.convert('RGB').save(buf, format='JPEG', quality=75)
+                        b64_data = base64.b64encode(buf.getvalue()).decode('utf-8')
+                else:
+                    with open(file_path, 'rb') as f:
+                        b64_data = base64.b64encode(f.read()).decode('utf-8')
 
-            valid_samples.append({
-                "label_name": row.get('label_name', ''),
-                "category": row.get('category', 'umum'),
-                "notes": row.get('notes', ''),
-                "image_b64": b64_data
-            })
-        except Exception as read_err:
-            current_app.logger.warning(f"Gagal membaca foto referensi {file_path}: {read_err}")
-            continue
+                valid_samples.append({
+                    "label_name": row.get('label_name', ''),
+                    "category": row.get('category', 'umum'),
+                    "notes": row.get('notes', ''),
+                    "image_b64": b64_data
+                })
+            except Exception as read_err:
+                current_app.logger.warning(f"Gagal membaca foto referensi {row.get('image_path')}: {read_err}")
+                continue
+    except Exception as ref_err:
+        current_app.logger.warning(f"Gagal memproses sampel referensi: {ref_err}")
+        return []
 
     return valid_samples
 
@@ -173,16 +214,18 @@ def _call_gemini_vision(
     prompt: str,
     image_b64: Optional[str] = None,
     system_prompt: Optional[str] = None,
-    references: Optional[List[Dict[str, Any]]] = None
+    references: Optional[List[Dict[str, Any]]] = None,
+    model: Optional[str] = None
 ) -> Tuple[bool, str]:
     """
-    Memanggil Google Gemini API 2.5 Flash dengan dukungan Multi-Image Visual Few-Shot
+    Memanggil Google Gemini API (default gemini-2.5-flash) dengan dukungan Multi-Image Visual Few-Shot
     menggunakan foto referensi dari custom_objects dan timeout 25 detik.
     """
-    if not api_key or api_key == 'ISI_API_KEY_ANDA_DISINI':
+    if not api_key:
         return False, "Gemini API Key belum dikonfigurasi."
 
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+    clean_model = (model or '').strip() or os.getenv('GEMINI_MODEL', 'gemini-2.5-flash').strip() or 'gemini-2.5-flash'
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model}:generateContent"
     headers = {
         'Content-Type': 'application/json',
         'x-goog-api-key': api_key
@@ -209,19 +252,24 @@ def _call_gemini_vision(
 
             ref_img_b64 = ref.get('image_b64')
             if ref_img_b64:
+                clean_ref_b64 = re.sub(r'^data:image/[^;]+;base64,', '', str(ref_img_b64).strip(), flags=re.IGNORECASE).strip()
+                missing_pad = len(clean_ref_b64) % 4
+                if missing_pad:
+                    clean_ref_b64 += '=' * (4 - missing_pad)
                 parts.append({
                     "inline_data": {
                         "mime_type": "image/jpeg",
-                        "data": ref_img_b64
+                        "data": clean_ref_b64
                     }
                 })
 
-    # 2. Foto Target Kamera & Prompt Utama Analisis
+    # 2. Foto Target Kamera & Prompt Utama Analisis (Pembersihan Base64 Defensif)
     camera_target_intro = "[FOTO TARGET KAMERA SAAT INI]\n" + prompt
     if image_b64:
-        clean_b64 = image_b64
-        if ',' in clean_b64:
-            clean_b64 = clean_b64.split(',', 1)[1]
+        clean_b64 = re.sub(r'^data:image/[^;]+;base64,', '', str(image_b64).strip(), flags=re.IGNORECASE).strip()
+        missing_padding = len(clean_b64) % 4
+        if missing_padding:
+            clean_b64 += '=' * (4 - missing_padding)
         parts.append({
             "text": camera_target_intro + "\nAnalisa juga secara visual dari foto terlampir: sebutkan kondisi, perkiraan ukuran, dan konteks dalam Bahasa Indonesia."
         })
@@ -255,25 +303,34 @@ def _call_gemini_vision(
                     if text_out:
                         return True, text_out
             return False, "Respons Gemini tidak memuat konten teks yang valid."
-        return False, f"Gemini API merespons status HTTP {resp.status_code}"
+
+        try:
+            err_data = resp.json()
+            err_msg = err_data.get('error', {}).get('message') or str(err_data)
+        except Exception:
+            err_msg = resp.text[:200]
+        clean_msg = _mask_in_text(err_msg, api_key)
+        return False, f"HTTP {resp.status_code}: {clean_msg}"
     except Exception as e:
-        return False, f"Koneksi ke Gemini gagal: {str(e)}"
+        clean_err = _mask_in_text(str(e), api_key)
+        return False, f"Koneksi gagal: {clean_err}"
 
 def _call_deepseek_text(
     api_key: str,
     system_prompt: Optional[str],
     user_prompt: str,
-    references: Optional[List[Dict[str, Any]]] = None
+    references: Optional[List[Dict[str, Any]]] = None,
+    model: Optional[str] = None
 ) -> Tuple[bool, str]:
     """
     Memanggil DeepSeek Chat API dengan penyertaan konteks ringkasan kamus objek
     lokal jika referensi tersedia, dengan timeout 20 detik.
     """
-    if not api_key or api_key == 'ISI_DEEPSEEK_API_KEY_DISINI':
+    if not api_key:
         return False, "DeepSeek API Key belum dikonfigurasi."
 
     url = os.getenv('DEEPSEEK_API_URL', 'https://api.deepseek.com/chat/completions')
-    model = os.getenv('DEEPSEEK_MODEL', 'deepseek-chat')
+    clean_model = (model or '').strip() or os.getenv('DEEPSEEK_MODEL', 'deepseek-chat').strip() or 'deepseek-chat'
     headers = {
         'Content-Type': 'application/json',
         'Authorization': f'Bearer {api_key}'
@@ -296,7 +353,7 @@ def _call_deepseek_text(
         enhanced_user_prompt += ref_context
 
     payload = {
-        "model": model,
+        "model": clean_model,
         "messages": [
             {"role": "system", "content": (system_prompt or "Anda adalah asisten AI Benggala.")[:600]},
             {"role": "user", "content": enhanced_user_prompt}
@@ -313,9 +370,20 @@ def _call_deepseek_text(
                 if content:
                     return True, content
             return False, "Respons DeepSeek tidak memuat konten teks yang valid."
-        return False, f"DeepSeek API merespons status HTTP {resp.status_code}"
+
+        try:
+            err_data = resp.json()
+            err_obj = err_data.get('error', {})
+            err_msg = err_obj.get('message') if isinstance(err_obj, dict) else str(err_obj)
+            if not err_msg:
+                err_msg = str(err_data)
+        except Exception:
+            err_msg = resp.text[:200]
+        clean_msg = _mask_in_text(err_msg, api_key)
+        return False, f"HTTP {resp.status_code}: {clean_msg}"
     except Exception as e:
-        return False, f"Koneksi ke DeepSeek gagal: {str(e)}"
+        clean_err = _mask_in_text(str(e), api_key)
+        return False, f"Koneksi gagal: {clean_err}"
 
 # -----------------------------------------------------------------------------
 # 1. POST /api/snapshot/save (Simpan Snapshot Gambar Aman)
@@ -505,13 +573,6 @@ def save_snapshot():
         "telegram_sent": telegram_sent
     }), 200
 
-def _clean_api_key(key_val: str, env_var: str) -> str:
-    """Membersihkan API key dan fallback otomatis ke env var jika dummy/placeholder/masked."""
-    k = str(key_val or '').strip()
-    if not k or '****' in k or k.startswith('ISI_') or 'DemoKey' in k or 'FakeKey' in k or len(k) < 8:
-        return os.getenv(env_var, '').strip()
-    return k
-
 # -----------------------------------------------------------------------------
 # 2. POST /api/ai/analyze (Smart LLM Router dengan Auto-Fallback)
 # -----------------------------------------------------------------------------
@@ -526,14 +587,34 @@ def analyze_ai():
     payload = request.get_json(silent=True) or {}
     settings = get_all_settings()
 
-    # Kredensial AI dari settings (fallback ke environment jika kosong/dummy)
+    # Kredensial AI dari settings mentah (fallback ke environment jika kosong/dummy/masked)
     gemini_key = _clean_api_key(settings.get('gemini_api_key'), 'GEMINI_API_KEY')
     deepseek_key = _clean_api_key(settings.get('deepseek_api_key'), 'DEEPSEEK_API_KEY')
 
+    # Validasi jika kedua API Key tidak tersedia
+    if not gemini_key and not deepseek_key:
+        return jsonify({
+            "status": "error",
+            "error_stage": "config",
+            "message": "API Key Gemini/DeepSeek belum diisi di Pengaturan"
+        }), 400
+
+    gemini_model = (settings.get('gemini_model') or os.getenv('GEMINI_MODEL') or 'gemini-2.5-flash').strip()
+    deepseek_model = (settings.get('deepseek_model') or os.getenv('DEEPSEEK_MODEL') or 'deepseek-chat').strip()
+
     default_provider = (settings.get('llm_provider') or settings.get('llm_default_provider') or os.getenv('LLM_DEFAULT_PROVIDER') or 'gemini').lower()
     requested_provider = (payload.get('provider') or default_provider).lower()
-    primary = 'gemini' if requested_provider == 'gemini' else 'deepseek'
-    secondary = 'gemini' if primary == 'deepseek' else 'deepseek'
+
+    # Prioritaskan provider yang memiliki key jika salah satu belum diisi
+    if requested_provider == 'gemini' and not gemini_key and deepseek_key:
+        primary = 'deepseek'
+        secondary = 'gemini'
+    elif requested_provider == 'deepseek' and not deepseek_key and gemini_key:
+        primary = 'gemini'
+        secondary = 'deepseek'
+    else:
+        primary = 'gemini' if requested_provider == 'gemini' else 'deepseek'
+        secondary = 'gemini' if primary == 'deepseek' else 'deepseek'
 
     system_prompt = payload.get('system_prompt') or payload.get('mission_prompt') or settings.get('system_prompt') or os.getenv('SYSTEM_PROMPT') or "Anda adalah asisten AI Benggala yang menganalisis objek visual dalam Bahasa Indonesia."
 
@@ -561,7 +642,7 @@ def analyze_ai():
     custom_label = (payload.get('custom_label') or '').strip()
     mission_category = (payload.get('mission_category') or '').strip()
 
-    # Ambil sampel referensi visual (maksimal 3) dari custom_objects
+    # Ambil sampel referensi visual (maksimal 3) dari custom_objects secara terisolasi aman
     references = _get_reference_samples(
         custom_label=custom_label,
         objects_text=user_prompt,
@@ -578,52 +659,79 @@ def analyze_ai():
     # 1. Jalankan Provider Utama
     fallback_triggered = False
     used_provider = primary
-    error_primary = None
-    error_secondary = None
+    error_gemini = None
+    error_deepseek = None
 
     if primary == 'gemini':
-        success, result_text = _call_gemini_vision(gemini_key, user_prompt, image_b64, system_prompt, references=references)
+        success, result_text = _call_gemini_vision(gemini_key, user_prompt, image_b64, system_prompt, references=references, model=gemini_model)
+        if not success:
+            error_gemini = result_text
     else:
-        success, result_text = _call_deepseek_text(deepseek_key, system_prompt, user_prompt, references=references)
+        success, result_text = _call_deepseek_text(deepseek_key, system_prompt, user_prompt, references=references, model=deepseek_model)
+        if not success:
+            error_deepseek = result_text
 
     if not success:
-        error_primary = result_text
-        current_app.logger.warning(f"AI Provider primer ({primary}) gagal: {error_primary}")
+        current_app.logger.warning(f"AI Provider primer ({primary}) gagal: {result_text}")
 
     # 2. Jika Provider Utama Gagal, Jalankan Provider Cadangan (Auto-Fallback)
     if not success:
         fallback_triggered = True
         used_provider = secondary
         if secondary == 'gemini':
-            success, result_text = _call_gemini_vision(gemini_key, user_prompt, image_b64, system_prompt, references=references)
+            success, result_text = _call_gemini_vision(gemini_key, user_prompt, image_b64, system_prompt, references=references, model=gemini_model)
+            if not success:
+                error_gemini = result_text
         else:
-            success, result_text = _call_deepseek_text(deepseek_key, system_prompt, user_prompt, references=references)
+            success, result_text = _call_deepseek_text(deepseek_key, system_prompt, user_prompt, references=references, model=deepseek_model)
+            if not success:
+                error_deepseek = result_text
 
         if not success:
-            error_secondary = result_text
-            current_app.logger.error(f"AI Provider cadangan ({secondary}) gagal: {error_secondary}")
+            current_app.logger.warning(f"AI Provider cadangan ({secondary}) gagal: {result_text}")
 
-    # 3. Jika Kedua Provider Gagal, Kembalikan HTTP 502 dengan Pesan Diagnostik Informatif
+    # 3. Jika Kedua Provider Gagal, Kembalikan HTTP 502 dengan Pesan Terstruktur
     if not success:
-        diag_msg = f"Layanan AI sementara tidak tersedia ({primary}: {error_primary}; {secondary}: {error_secondary})."
+        err_gemini_str = error_gemini or "Tidak dijalankan / Key tidak tersedia"
+        err_deepseek_str = error_deepseek or "Tidak dijalankan / Key tidak tersedia"
+        combined_msg = f"Gemini: {err_gemini_str} | DeepSeek: {err_deepseek_str}"
+        current_app.logger.error(f"Semua provider AI gagal: {combined_msg}")
         return jsonify({
             "status": "error",
-            "message": diag_msg,
+            "error_stage": "ai_all_failed",
+            "message": combined_msg,
             "error_details": {
-                "primary": f"{primary}: {error_primary}",
-                "secondary": f"{secondary}: {error_secondary}"
+                "gemini": err_gemini_str,
+                "deepseek": err_deepseek_str
             },
             "fallback_triggered": True
         }), 502
 
-    # 4. Jika ada log_id, update record detection_logs
+    # 4. Jika ada log_id, update record detection_logs secara aman (adaptif terhadap kolom DB)
     if log_id and log_id > 0:
         try:
-            db_execute("""
-                UPDATE detection_logs 
-                SET ai_provider = %s, analysis_result = %s, llm_provider = %s, llm_analysis = %s 
-                WHERE id = %s
-            """, (used_provider, result_text, used_provider, result_text, log_id))
+            cols_raw = db_fetch_all("SHOW COLUMNS FROM detection_logs") or []
+            avail_cols = {c['Field'] for c in cols_raw if 'Field' in c}
+
+            set_parts = []
+            set_vals = []
+            if 'llm_provider' in avail_cols:
+                set_parts.append("llm_provider = %s")
+                set_vals.append(used_provider)
+            if 'llm_analysis' in avail_cols:
+                set_parts.append("llm_analysis = %s")
+                set_vals.append(result_text)
+            if 'ai_provider' in avail_cols:
+                set_parts.append("ai_provider = %s")
+                set_vals.append(used_provider)
+            if 'analysis_result' in avail_cols:
+                set_parts.append("analysis_result = %s")
+                set_vals.append(result_text)
+
+            if set_parts:
+                sql_update = f"UPDATE detection_logs SET {', '.join(set_parts)} WHERE id = %s"
+                set_vals.append(log_id)
+                db_execute(sql_update, tuple(set_vals))
         except Exception as e:
             current_app.logger.warning(f"Gagal memperbarui analysis pada log_id {log_id}: {e}")
 
