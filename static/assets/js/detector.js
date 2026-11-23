@@ -1492,6 +1492,73 @@ document.addEventListener('DOMContentLoaded', () => {
     btnAnalyzeLLM.addEventListener('click', handleAnalyzeLLM);
   }
 
+  // Hubungkan tombol analisis warna HSV (Python Superpower Task PY06)
+  const btnAnalyzeHsv = document.getElementById('btnAnalyzeHsv');
+  const hsvQualityBadge = document.getElementById('hsvQualityBadge');
+
+  if (btnAnalyzeHsv) {
+    btnAnalyzeHsv.addEventListener('click', async () => {
+      if (!isStreaming) {
+        showToast('Aktifkan sensor optik / kamera terlebih dahulu.', 'error');
+        return;
+      }
+      const csrfToken = getCsrfToken();
+      const base64Image = captureMergedSnapshot();
+      if (!base64Image) {
+        showToast('Gagal menangkap frame video.', 'error');
+        return;
+      }
+
+      btnAnalyzeHsv.disabled = true;
+      const oldHtml = btnAnalyzeHsv.innerHTML;
+      btnAnalyzeHsv.innerHTML = '⏳ Menghitung HSV...';
+
+      try {
+        const response = await fetch('/api/python/hsv-color', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-Token': csrfToken
+          },
+          body: JSON.stringify({
+            image: base64Image
+          })
+        });
+
+        const res = await response.json();
+        if (response.ok && res.status === 'ok') {
+          showToast(res.summary, 'success');
+          if (hsvQualityBadge) {
+            hsvQualityBadge.textContent = `🎨 ${res.dominant_color} (${res.quality_score}%)`;
+            hsvQualityBadge.style.display = 'inline-block';
+          }
+          if (llmAnalysisContent) {
+            const hsvBox = document.createElement('div');
+            hsvBox.style.padding = '8px 12px';
+            hsvBox.style.marginBottom = '10px';
+            hsvBox.style.background = 'rgba(56, 189, 248, 0.1)';
+            hsvBox.style.border = '1px solid rgba(56, 189, 248, 0.4)';
+            hsvBox.style.borderRadius = '6px';
+            hsvBox.style.fontSize = '0.85rem';
+            hsvBox.style.color = '#e2e8f0';
+            hsvBox.innerHTML = `<strong>🎨 Analisis Warna HSV (Python):</strong><br>${res.summary}<br><small style="color: #94a3b8;">H: ${res.hsv.h}° • S: ${res.hsv.s}% • V: ${res.hsv.v}%</small>`;
+            llmAnalysisContent.prepend(hsvBox);
+          }
+        } else {
+          showToast(res.message || 'Gagal menganalisis warna HSV.', 'error');
+        }
+      } catch (err) {
+        console.error('Error saat analisis HSV:', err);
+        showToast('Koneksi ke endpoint analisis HSV gagal.', 'error');
+      } finally {
+        btnAnalyzeHsv.disabled = false;
+        btnAnalyzeHsv.innerHTML = oldHtml;
+      }
+    });
+  }
+
   // Event Kalibrasi Ukuran Real-Time (cm)
   if (btnCalibrate) {
     btnCalibrate.addEventListener('click', () => {
@@ -2165,6 +2232,16 @@ document.addEventListener('DOMContentLoaded', () => {
         viewLink.rel = 'noopener noreferrer';
         viewLink.textContent = '🔍 Lihat Foto';
         cardFooter.appendChild(viewLink);
+
+        // PDF Report link (Task PY06)
+        const pdfLink = document.createElement('a');
+        pdfLink.className = 'btn-report-pdf';
+        pdfLink.href = `/api/python/report-pdf/${item.id}`;
+        pdfLink.target = '_blank';
+        pdfLink.rel = 'noopener noreferrer';
+        pdfLink.textContent = '📄 PDF';
+        pdfLink.title = 'Unduh Laporan Forensik PDF';
+        cardFooter.appendChild(pdfLink);
 
         // Delete button
         const btnDelete = document.createElement('button');

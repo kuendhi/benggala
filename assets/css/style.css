@@ -1732,6 +1732,28 @@ input[type="range"]::-webkit-slider-thumb:hover {
   text-decoration: underline;
 }
 
+.btn-report-pdf {
+  color: #38bdf8;
+  font-size: 0.72rem;
+  text-decoration: none;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(56, 189, 248, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  transition: all 0.2s ease;
+}
+
+.btn-report-pdf:hover {
+  text-decoration: none;
+  background: rgba(56, 189, 248, 0.25);
+  border-color: #38bdf8;
+  color: #fff;
+}
+
 /* ==========================================================================
    13. Settings Section
    ========================================================================== */

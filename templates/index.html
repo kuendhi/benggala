@@ -295,6 +295,9 @@
           <button type="button" id="btnAnalyzeLLM" class="btn btn-llm" disabled>
             ✨ Analisis Cerdas (Vision AI)
           </button>
+          <button type="button" id="btnAnalyzeHsv" class="btn btn-secondary" style="margin-top: 6px;" title="Analisis Kematangan Warna HSV (Python Engine)">
+            🎨 Analisis HSV (Python)
+          </button>
           <div class="voice-cmd-row">
             <button type="button" id="btnVoiceCmd" class="btn btn-secondary" title="Perintah Suara">
               🎙️ Perintah Suara
@@ -312,6 +315,7 @@
             <div class="llm-badges">
               <span id="llmProviderBadge" class="provider-badge">deepseek</span>
               <span id="llmFallbackBadge" class="fallback-badge" style="display: none;">⚡ Auto-Fallback</span>
+              <span id="hsvQualityBadge" class="fallback-badge" style="display: none; background: rgba(56, 189, 248, 0.2); border: 1px solid #38bdf8; color: #38bdf8;"></span>
             </div>
           </div>
           <div id="llmAnalysisContent" class="llm-content">
