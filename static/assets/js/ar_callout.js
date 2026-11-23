@@ -25,6 +25,7 @@
   let reticleScanPinnedTarget = null;
   let reticleScanPinnedProfile = null;
   let reticleScanPinnedExpires = 0;
+  let lastRenderedKey = '';
 
   // Konfigurasi
   const LERP_FACTOR = 0.22;
@@ -39,6 +40,21 @@
     if (!layerEl) layerEl = document.getElementById('arCalloutLayer');
     if (!svgEl) svgEl = document.getElementById('arConnectorSvg');
     if (!cardEl) cardEl = document.getElementById('arCalloutCard');
+
+    if (cardEl && !cardEl._hasDetailListener) {
+      // Event delegation untuk tombol detail pada kartu AR (tahan re-render 60 FPS & sentuhan HP)
+      cardEl.addEventListener('click', onCardElementClick);
+      cardEl.addEventListener('touchend', (e) => {
+        const btn = e.target.closest('#btnOpenItemDetail') || e.target.closest('#btnArEnrichAi');
+        if (btn) {
+          e.preventDefault();
+          e.stopPropagation();
+          onCardElementClick(e);
+        }
+      }, { passive: false });
+      cardEl._hasDetailListener = true;
+    }
+
     return Boolean(layerEl && svgEl && cardEl);
   }
 
@@ -90,6 +106,7 @@
     reticleScanPinnedTarget = null;
     reticleScanPinnedProfile = null;
     reticleScanPinnedExpires = 0;
+    lastRenderedKey = '';
   }
 
   /**
@@ -172,10 +189,87 @@
   }
 
   /**
+   * Handler navigasi dan buka halaman detail objek interaktif
+   */
+  function openItemDetailPage(prediction, profile) {
+    try {
+      const pred = prediction || activePredictionRef || reticleScanPinnedTarget;
+      const prof = profile || reticleScanPinnedProfile || (pred && window.BenggalaObjectProfiles && typeof window.BenggalaObjectProfiles.getProfile === 'function' ? window.BenggalaObjectProfiles.getProfile(pred.class, pred.customMeta || null) : null);
+
+      const rawLabel = (pred && (pred.customLabel || pred.class)) || (prof && prof.title) || 'objek';
+      const cleanLabel = String(rawLabel).replace(/^★\s*/, '').trim();
+
+      // 1. Ambil snapshot frame terkompresi dari kamera
+      const snapshotImg = captureCompressedFrame() || '';
+
+      // 2. Siapkan data komprehensif objek terkunci & status AI terkini
+      const itemData = {
+        label: cleanLabel,
+        title: (prof && prof.title) || cleanLabel,
+        category: (prof && prof.category) || 'OBJEK',
+        utility: (prof && prof.utility) || 'Objek teridentifikasi oleh sistem kuncian taktis Benggala.',
+        detail: (prof && prof.detail) || 'Profil objek aktif dari kokpit kamera.',
+        extra_tip: (prof && prof.extra_tip) || '',
+        safety: (prof && prof.safety) || 'aman',
+        safetyNote: (prof && prof.safetyNote) || 'Aman dalam penggunaan standar.',
+        dimensionsText: (currentOptions && currentOptions.dimensionsText) || '',
+        source: (prof && prof.source) || 'AI LIVE',
+        score: (pred && typeof pred.score === 'number') ? Math.round(pred.score * 100) : 0,
+        image: snapshotImg,
+        timestamp: Date.now()
+      };
+
+      // 3. Simpan ke sessionStorage agar langsung terbaca di halaman /item-detail
+      try {
+        sessionStorage.setItem('benggala_locked_item', JSON.stringify(itemData));
+      } catch (e) {
+        console.warn('Storage quota exceeded for image snapshot:', e);
+        delete itemData.image;
+        sessionStorage.setItem('benggala_locked_item', JSON.stringify(itemData));
+      }
+
+      // 4. Buka halaman detail item
+      const base = window.BASE_PATH || '';
+      window.location.href = `${base}/item-detail?label=${encodeURIComponent(cleanLabel)}`;
+    } catch (err) {
+      console.error('Gagal membuka halaman detail item:', err);
+      if (typeof window.showToast === 'function') {
+        window.showToast('⚠️ Gagal membuka detail objek', 'error');
+      }
+    }
+  }
+
+  /**
+   * Event delegation handler untuk klik tombol pada kartu AR
+   */
+  function onCardElementClick(e) {
+    const btn = e.target.closest('#btnOpenItemDetail') || e.target.closest('#btnArEnrichAi');
+    if (!btn) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    const pred = activePredictionRef || reticleScanPinnedTarget;
+    let prof = (pred && pred.isReticleScan) ? reticleScanPinnedProfile : null;
+    if (!prof && pred && window.BenggalaObjectProfiles && typeof window.BenggalaObjectProfiles.getProfile === 'function') {
+      prof = window.BenggalaObjectProfiles.getProfile(pred.class, pred.customMeta || null);
+    }
+    openItemDetailPage(pred, prof);
+  }
+
+  /**
    * Render template konten HTML pada `#arCalloutCard`
    */
   function renderCardContent(prediction, profile, dimensionsText, themeColor, isLocked) {
     if (!cardEl) return;
+
+    const rawLabel = (prediction && (prediction.customLabel || prediction.class)) || (profile && profile.title) || '';
+    const scoreVal = prediction && typeof prediction.score === 'number' ? Math.round(prediction.score * 100) : 0;
+    const currentKey = `${rawLabel}|${profile.title || ''}|${profile.category || ''}|${profile.utility || ''}|${profile.detail || ''}|${profile.safety || ''}|${Boolean(isLocked)}|${dimensionsText || ''}|${scoreVal}|${profile.source || ''}`;
+
+    if (currentKey === lastRenderedKey && cardEl.querySelector('#btnOpenItemDetail')) {
+      return; // Hindari manipulasi DOM berulang pada 60 FPS agar event click tidak hilang
+    }
+    lastRenderedKey = currentKey;
 
     const sourceBadgeMap = {
       'BIDIK AI': '<span class="ar-badge-source source-ai" style="background: rgba(0, 240, 255, 0.25); color: #00f0ff; border-color: rgba(0, 240, 255, 0.55); font-weight: 700;">🎯 BIDIK AI</span>',
@@ -189,7 +283,6 @@
       ? sourceBadgeMap['BIDIK AI']
       : (sourceBadgeMap[profile.source] || '<span class="ar-badge-source source-local">⚡ LOKAL</span>');
     const categoryHtml = `<span class="ar-badge-category">${escapeHtml(profile.category || 'OBJEK')}</span>`;
-    const scoreVal = prediction && typeof prediction.score === 'number' ? Math.round(prediction.score * 100) : 0;
     const scoreHtml = scoreVal > 0 ? `<span class="ar-badge-score">${scoreVal}%</span>` : '';
 
     const lockBadge = isLocked ? '<span class="ar-badge-lock" title="Target Terkunci">🔒 LOCK</span>' : '';
@@ -220,7 +313,7 @@
       </div>
 
       <div class="ar-card-title-row">
-        <h4 class="ar-card-title">${escapeHtml(profile.title || prediction.class)}</h4>
+        <h4 class="ar-card-title">${escapeHtml(profile.title || (prediction && prediction.class) || 'Target')}</h4>
         ${dimHtml}
       </div>
 
@@ -245,24 +338,20 @@
           <span class="ar-safety-dot"></span>
           <span class="ar-safety-text">${safetyLabel}</span>
         </div>
-        ${(profile.source === 'AI LIVE' || isBidikAi) ? `
-          <span class="ar-badge-source source-ai" style="padding: 3px 6px; font-weight: 700;">${isBidikAi ? '✓ BIDIK AI' : '✓ AI LIVE'}</span>
-        ` : `
-          <button type="button" id="btnArEnrichAi" class="ar-btn-enrich" title="Analisis visual mendalam dengan Gemini Vision">
-            ✨ Detail AI
-          </button>
-        `}
+        <button type="button" id="btnOpenItemDetail" class="ar-btn-detail" title="Buka Detail Lengkap & Chat AI Interaktif">
+          <span>💬 Detail & Chat AI ➔</span>
+        </button>
       </div>
     `;
 
-    // Pasang listener pada tombol Detail AI mikro
-    const btnEnrich = cardEl.querySelector('#btnArEnrichAi');
-    if (btnEnrich) {
-      btnEnrich.addEventListener('click', (e) => {
+    // Pasang direct listener juga sebagai cadangan selain event delegation
+    const btnDetail = cardEl.querySelector('#btnOpenItemDetail');
+    if (btnDetail) {
+      btnDetail.onclick = (e) => {
         e.stopPropagation();
         e.preventDefault();
-        handleQuickDetailClick(btnEnrich);
-      });
+        openItemDetailPage(prediction, profile);
+      };
     }
   }
 

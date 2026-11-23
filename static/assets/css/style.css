@@ -3675,6 +3675,38 @@ body.mode-emergency .mission-status-badge {
   transform: scale(0.96);
 }
 
+.ar-btn-detail {
+  pointer-events: auto !important;
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.25), rgba(16, 185, 129, 0.35));
+  border: 1px solid rgba(0, 229, 255, 0.6);
+  color: #00f0ff;
+  font-family: var(--font-display, sans-serif);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.35);
+  text-decoration: none;
+}
+
+.ar-btn-detail:hover {
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.45), rgba(16, 185, 129, 0.55));
+  color: #ffffff;
+  border-color: #00f0ff;
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.7);
+  transform: scale(1.04);
+}
+
+.ar-btn-detail:active {
+  transform: scale(0.96);
+}
+
 /* Responsif Layar HP (max-width: 600px) */
 @media (max-width: 600px) {
   .ar-callout-card {
@@ -3705,6 +3737,11 @@ body.mode-emergency .mission-status-badge {
   .ar-btn-enrich {
     font-size: 0.62rem;
     padding: 2px 6px;
+  }
+
+  .ar-btn-detail {
+    font-size: 0.64rem;
+    padding: 3px 7px;
   }
 
   .ar-badge-category {

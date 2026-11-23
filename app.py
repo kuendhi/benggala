@@ -65,6 +65,15 @@ def index():
     base_path = request.script_root.rstrip('/') or os.getenv('BASE_PATH', '').rstrip('/')
     return render_template('index.html', csrf_token=session['csrf_token'], base_path=base_path)
 
+@app.route('/item-detail')
+def item_detail():
+    """Halaman detail objek terkunci & interaksi AI interaktif mendalam."""
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_hex(32)
+    base_path = request.script_root.rstrip('/') or os.getenv('BASE_PATH', '').rstrip('/')
+    target_label = (request.args.get('label') or '').strip()
+    return render_template('item_detail.html', csrf_token=session['csrf_token'], base_path=base_path, target_label=target_label)
+
 @app.route('/manifest.json')
 def manifest():
     """Menyajikan manifest.json PWA dari direktori static."""

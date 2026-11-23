@@ -1018,3 +1018,127 @@ def telegram_send():
         "success": True,
         "message": "Notifikasi Telegram terkirim"
     }), 200
+
+# -----------------------------------------------------------------------------
+# 4. POST /api/ai/chat-item (Interaksi Percakapan AI Khusus Objek Terkunci)
+# -----------------------------------------------------------------------------
+@ai_snapshot_bp.route('/api/ai/chat-item', methods=['POST'])
+@require_api_security(max_requests=60, window_seconds=60)
+def chat_item_ai():
+    """
+    Endpoint percakapan AI interaktif dua arah mengenai objek yang terkunci.
+    Menerima pesan pertanyaan user, riwayat obrolan (history), konteks profil objek,
+    serta foto snapshot (jika ada) untuk dianalisis oleh Gemini Vision / DeepSeek.
+    """
+    payload = request.get_json(silent=True) or {}
+    message = str(payload.get('message') or '').strip()
+    if not message:
+        return jsonify({
+            "status": "error",
+            "message": "Pesan pertanyaan pengguna wajib diisi."
+        }), 400
+
+    item_ctx = payload.get('item_context') or {}
+    history = payload.get('history') or []
+    image_b64 = payload.get('image')
+
+    title = str(item_ctx.get('title') or item_ctx.get('label') or 'Objek').strip()
+    category = str(item_ctx.get('category') or 'Umum').strip()
+    utility = str(item_ctx.get('utility') or '-').strip()
+    detail = str(item_ctx.get('detail') or '-').strip()
+    safety = str(item_ctx.get('safety') or 'aman').strip()
+    safety_note = str(item_ctx.get('safetyNote') or '-').strip()
+
+    system_prompt = (
+        "Anda adalah Benggala Tactical AI, asisten analitik cerdas yang mendampingi pengguna "
+        "dalam memeriksa objek hasil deteksi/kuncian kamera secara interaktif.\n"
+        f"Konteks Objek yang Sedang Diperiksa:\n"
+        f"• Nama/Label: {title}\n"
+        f"• Kategori: {category}\n"
+        f"• Fungsi Utama: {utility}\n"
+        f"• Informasi/Material: {detail}\n"
+        f"• Keamanan: {safety} ({safety_note})\n\n"
+        "Petunjuk Respon:\n"
+        "1. Jawab pertanyaan pengguna dengan ramah, lugas, akurat, dan solutif dalam Bahasa Indonesia.\n"
+        "2. Jika ditanya tentang fungsi, perawatan, nilai, atau risiko, jelaskan secara praktis dan terstruktur.\n"
+        "3. Gunakan formatting Markdown (bullet points, bold) agar mudah dibaca pada layar HP/laptop.\n"
+        "4. Selalu prioritaskan keselamatan pengguna jika objek berpotensi berbahaya atau berisiko."
+    )
+
+    # Format percakapan dengan riwayat obrolan
+    convo_parts = []
+    if isinstance(history, list):
+        for h in history[-6:]:
+            role = 'User' if h.get('role') in ('user', 'human') else 'Benggala AI'
+            text = str(h.get('content') or '').strip()
+            if text:
+                convo_parts.append(f"{role}: {text}")
+
+    convo_parts.append(f"User: {message}")
+    full_user_prompt = "\n".join(convo_parts)
+
+    settings = get_all_settings()
+    gemini_key = _clean_api_key(settings.get('gemini_api_key'), 'GEMINI_API_KEY')
+    deepseek_key = _clean_api_key(settings.get('deepseek_api_key'), 'DEEPSEEK_API_KEY')
+    gemini_model = (settings.get('gemini_model') or os.getenv('GEMINI_MODEL') or 'gemini-2.5-flash').strip()
+    deepseek_model = (settings.get('deepseek_model') or os.getenv('DEEPSEEK_MODEL') or 'deepseek-chat').strip()
+
+    reply_text = ""
+    provider_used = "offline"
+
+    # Bersihkan image_b64 jika ada
+    if image_b64:
+        image_b64 = re.sub(r'^data:image/[^;]+;base64,', '', str(image_b64).strip(), flags=re.IGNORECASE).strip()
+        missing_pad = len(image_b64) % 4
+        if missing_pad:
+            image_b64 += '=' * (4 - missing_pad)
+
+    # 1. Coba panggil Gemini (mendukung multimodal jika ada foto snapshot)
+    if gemini_key:
+        success, out = _call_gemini_vision(
+            gemini_key,
+            full_user_prompt,
+            image_b64=image_b64 if image_b64 else None,
+            system_prompt=system_prompt,
+            model=gemini_model
+        )
+        if success and out.strip():
+            reply_text = out.strip()
+            provider_used = "gemini"
+
+    # 2. Fallback ke DeepSeek jika Gemini belum berhasil
+    if not reply_text and deepseek_key:
+        success, out = _call_deepseek_text(
+            deepseek_key,
+            system_prompt,
+            full_user_prompt,
+            model=deepseek_model
+        )
+        if success and out.strip():
+            reply_text = out.strip()
+            provider_used = "deepseek"
+
+    # 3. Fallback cerdas offline jika tidak ada API key yang aktif
+    if not reply_text:
+        low_msg = message.lower()
+        if "fungsi" in low_msg or "kegunaan" in low_msg:
+            reply_text = f"**Fungsi Objek ({title}):**\n{utility}\n\nObjek ini secara umum dimanfaatkan sesuai konteks kategorinya ({category})."
+        elif "bahaya" in low_msg or "aman" in low_msg or "risiko" in low_msg:
+            reply_text = f"**Status Keamanan ({title}):**\nObjek berstatus **{safety.upper()}**. Catatan keselamatan: {safety_note}."
+        elif "rawat" in low_msg or "bersih" in low_msg:
+            reply_text = f"**Tips Perawatan ({title}):**\n1. Simpan di tempat yang bersih dan kering.\n2. Hindari benturan atau cairan kimia keras jika tidak sesuai materialnya.\n3. Bersihkan secara berkala menggunakan kain lap microfiber."
+        else:
+            reply_text = (
+                f"Saya telah menganalisis objek **{title}** ({category}).\n\n"
+                f"• **Fungsi:** {utility}\n"
+                f"• **Detail:** {detail}\n"
+                f"• **Status:** {safety.capitalize()} ({safety_note})\n\n"
+                "Silakan ajukan pertanyaan lebih spesifik mengenai kegunaan, spesifikasi, atau cara penanganannya."
+            )
+        provider_used = "offline-tactical"
+
+    return jsonify({
+        "status": "ok",
+        "reply": reply_text,
+        "provider": provider_used
+    }), 200

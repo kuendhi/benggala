@@ -11,12 +11,12 @@
   'use strict';
 
   const BenggalaAutoLock = {
-    // Konfigurasi Kuncian Rudal Udara (Air-to-Air Missile Radar Lock)
+    // Konfigurasi Kuncian Taktis Presisi (Task 20: Maksimal 3.0 Detik)
     enabled: true,
-    acquireMs: 1500,     // 1.5s Fase Akuisisi Radar (Membidik target)
-    lockMs: 4500,        // 4.5s Fase Mengunci Aktif (Total 1.5s + 4.5s = 6.0 DETIK)
-    totalLockMs: 6000,   // 6.0 DETIK kuncian stabil mutlak
-    cooldownMs: 1500,    // 1.5s jeda cooldown objek sama (objek baru langsung dibidik)
+    acquireMs: 700,      // 0.7s Fase Membidik Awal
+    lockMs: 2300,        // 2.3s Fase Mengunci Aktif (Total 0.7s + 2.3s = 3.0 DETIK)
+    totalLockMs: 3000,   // 3.0 DETIK kuncian stabil mutlak
+    cooldownMs: 1200,    // 1.2s jeda cooldown objek sama
     maxMovePx: 50,       // Toleransi pergeseran objek (px)
     lerpFactor: 0.22,    // Faktor kehalusan lerp reticle
 
@@ -446,14 +446,14 @@
       const rawLabel = primary.customLabel || primary.class;
       const objLabel = typeof window.translateLabel === 'function' ? window.translateLabel(rawLabel) : rawLabel;
 
-      // 4. State Machine Kuncian Rudal Udara (Air-to-Air Missile Radar 6 Detik)
+      // 4. State Machine Kuncian Taktis (Maksimal 3.0 Detik)
       if (elapsed < this.acquireMs) {
-        // FASE 1: RADAR TRACKING / MEMBIDIK (0.0s - 1.5s)
+        // FASE 1: TRACKING / MEMBIDIK (0.0s - 0.7s)
         this.state = 'ACQUIRING';
         this.lockedTarget = null;
         this.currentColor = '#00E5FF'; // Cyan Radar
         const sec = (elapsed / 1000).toFixed(1);
-        this.currentLabel = `📡 RADAR: ${objLabel.toUpperCase()} [${sec}s/6.0s]`;
+        this.currentLabel = `📡 MEMBIDIK: ${objLabel.toUpperCase()} [${sec}s/3.0s]`;
         this.currentProgress = Math.floor((elapsed / this.totalLockMs) * 100);
 
         // Suara ping radar setiap 420ms

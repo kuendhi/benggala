@@ -1790,9 +1790,9 @@ document.addEventListener('DOMContentLoaded', () => {
             autoLockPredictions,
             now,
             (lockedTarget) => {
-              // Target berhasil terkunci stabil 6.0s: Berikan feedback visual taktis ringan
+              // Target berhasil terkunci stabil 3.0s: Berikan feedback visual taktis ringan
               const objName = typeof window.translateLabel === 'function' ? window.translateLabel(lockedTarget.class) : lockedTarget.class;
-              showToast(`⚡ Target [${objName}] terkunci stabil (6.0s)`, 'success');
+              showToast(`⚡ Target [${objName}] terkunci stabil (3.0s)`, 'success');
             },
             canvas.width,
             canvas.height

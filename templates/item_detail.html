@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Detail Objek & Konsultasi AI // Benggala Vision</title>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <meta name="theme-color" content="#030712">
+
+  <!-- Google Fonts: JetBrains Mono, Orbitron, Rajdhani -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Orbitron:wght@600;700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ asset_url('assets/css/style.css') }}">
+
+  <style>
+    :root {
+      --bg-dark: #050b14;
+      --bg-card: rgba(10, 20, 36, 0.88);
+      --bg-card-border: rgba(0, 240, 255, 0.28);
+      --neon-cyan: #00f0ff;
+      --neon-emerald: #10b981;
+      --neon-amber: #f59e0b;
+      --neon-rose: #f43f5e;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background: radial-gradient(circle at 50% 10%, #0d1e38 0%, #050b14 70%, #02050a 100%);
+      color: var(--text-main);
+      font-family: 'Rajdhani', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      line-height: 1.5;
+    }
+
+    /* Top Tactical Navigation Bar */
+    .detail-nav-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(5, 11, 20, 0.92);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--bg-card-border);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .btn-nav-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0, 240, 255, 0.12);
+      border: 1px solid rgba(0, 240, 255, 0.45);
+      color: var(--neon-cyan);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.76rem;
+      font-weight: 700;
+      padding: 8px 14px;
+      border-radius: 6px;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .btn-nav-back:hover {
+      background: rgba(0, 240, 255, 0.25);
+      color: #ffffff;
+      box-shadow: 0 0 12px rgba(0, 240, 255, 0.5);
+      transform: translateX(-2px);
+    }
+
+    .nav-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--neon-emerald);
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      padding: 4px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+    }
+
+    .nav-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--neon-emerald);
+      box-shadow: 0 0 8px var(--neon-emerald);
+      animation: pulse-dot 1.5s infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    /* Main Container */
+    .detail-container {
+      flex: 1;
+      max-width: 960px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Hero Dossier Card */
+    .dossier-card {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(0, 240, 255, 0.05);
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .dossier-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, var(--neon-cyan), var(--neon-emerald), var(--neon-amber));
+    }
+
+    .dossier-media-col {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .dossier-photo-wrap {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: 8px;
+      background: #020617;
+      border: 1px solid rgba(0, 240, 255, 0.35);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .dossier-photo-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .dossier-photo-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      gap: 6px;
+      text-align: center;
+      padding: 12px;
+    }
+
+    .dossier-photo-placeholder span.icon {
+      font-size: 2.4rem;
+    }
+
+    .dossier-photo-crosshair {
+      position: absolute;
+      inset: 8px;
+      border: 1px dashed rgba(0, 240, 255, 0.3);
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .dossier-photo-crosshair::before,
+    .dossier-photo-crosshair::after {
+      content: '';
+      position: absolute;
+      background: rgba(0, 240, 255, 0.6);
+    }
+    .dossier-photo-crosshair::before { width: 14px; height: 1.5px; }
+    .dossier-photo-crosshair::after { width: 1.5px; height: 14px; }
+
+    .dossier-info-col {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .dossier-header-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge-tag {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-cat {
+      background: rgba(0, 240, 255, 0.15);
+      border: 1px solid rgba(0, 240, 255, 0.5);
+      color: var(--neon-cyan);
+    }
+
+    .badge-source {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.5);
+      color: var(--neon-emerald);
+    }
+
+    .badge-safety-aman {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid #10b981;
+      color: #6ee7b7;
+    }
+    .badge-safety-waspada {
+      background: rgba(245, 158, 11, 0.2);
+      border: 1px solid #f59e0b;
+      color: #fcd34d;
+    }
+    .badge-safety-bahaya {
+      background: rgba(244, 63, 94, 0.2);
+      border: 1px solid #f43f5e;
+      color: #fda4af;
+    }
+
+    .dossier-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: #ffffff;
+      text-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+      letter-spacing: 0.5px;
+      line-height: 1.25;
+    }
+
+    /* Structured Dossier Grid */
+    .dossier-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .dossier-grid-item {
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .grid-item-label {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.64rem;
+      color: var(--neon-cyan);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      letter-spacing: 0.5px;
+    }
+
+    .grid-item-val {
+      font-size: 0.88rem;
+      color: #e2e8f0;
+      line-height: 1.35;
+    }
+
+    /* AI Conversation Section */
+    .chat-section {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .chat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 10px;
+    }
+
+    .chat-title-group h3 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--neon-cyan);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chat-title-group p {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .chat-ai-engine-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.68rem;
+      color: var(--neon-emerald);
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+
+    /* Prompt Suggestion Chips */
+    .prompt-chips-wrap {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: none;
+    }
+    .prompt-chips-wrap::-webkit-scrollbar { display: none; }
+
+    .prompt-chip {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      color: #cbd5e1;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.18s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .prompt-chip:hover {
+      background: rgba(0, 240, 255, 0.2);
+      color: #ffffff;
+      border-color: var(--neon-cyan);
+      transform: translateY(-1px);
+    }
+
+    /* Message Stream */
+    .chat-stream-box {
+      flex: 1;
+      min-height: 280px;
+      max-height: 480px;
+      overflow-y: auto;
+      padding: 8px 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      scroll-behavior: smooth;
+    }
+
+    .chat-stream-box::-webkit-scrollbar {
+      width: 5px;
+    }
+    .chat-stream-box::-webkit-scrollbar-thumb {
+      background: rgba(0, 240, 255, 0.3);
+      border-radius: 3px;
+    }
+
+    .chat-msg {
+      display: flex;
+      flex-direction: column;
+      max-width: 86%;
+      animation: msg-appear 0.25s ease-out;
+    }
+
+    @keyframes msg-appear {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .chat-msg.user {
+      align-self: flex-end;
+    }
+
+    .chat-msg.assistant {
+      align-self: flex-start;
+    }
+
+    .msg-sender-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      margin-bottom: 3px;
+      letter-spacing: 0.4px;
+    }
+
+    .chat-msg.user .msg-sender-tag {
+      text-align: right;
+      color: var(--neon-cyan);
+    }
+
+    .chat-msg.assistant .msg-sender-tag {
+      color: var(--neon-emerald);
+    }
+
+    .msg-bubble {
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 0.92rem;
+      line-height: 1.45;
+      word-break: break-word;
+      position: relative;
+    }
+
+    .chat-msg.user .msg-bubble {
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.22), rgba(2, 132, 199, 0.32));
+      border: 1px solid rgba(0, 240, 255, 0.5);
+      color: #ffffff;
+      border-top-right-radius: 2px;
+    }
+
+    .chat-msg.assistant .msg-bubble {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      color: #f1f5f9;
+      border-top-left-radius: 2px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    }
+
+    .msg-bubble strong {
+      color: var(--neon-cyan);
+      font-weight: 700;
+    }
+
+    .msg-bubble ul, .msg-bubble ol {
+      margin: 6px 0 6px 18px;
+    }
+
+    .msg-bubble li {
+      margin-bottom: 3px;
+    }
+
+    .msg-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .btn-msg-action {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text-muted);
+      font-size: 0.68rem;
+      padding: 2px 7px;
+      border-radius: 3px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      transition: all 0.15s ease;
+    }
+
+    .btn-msg-action:hover {
+      background: rgba(0, 240, 255, 0.15);
+      color: #ffffff;
+      border-color: var(--neon-cyan);
+    }
+
+    /* Thinking State */
+    .chat-thinking {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--neon-cyan);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      padding: 8px 12px;
+      background: rgba(0, 240, 255, 0.08);
+      border: 1px dashed rgba(0, 240, 255, 0.35);
+      border-radius: 8px;
+      width: fit-content;
+    }
+
+    .thinking-spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(0, 240, 255, 0.2);
+      border-top-color: var(--neon-cyan);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Chat Input Bar */
+    .chat-input-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(0, 240, 255, 0.35);
+      border-radius: 10px;
+      padding: 6px 8px;
+      position: relative;
+    }
+
+    .chat-input-bar:focus-within {
+      border-color: var(--neon-cyan);
+      box-shadow: 0 0 14px rgba(0, 240, 255, 0.25);
+    }
+
+    .chat-input-field {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #ffffff;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.95rem;
+      padding: 6px 8px;
+    }
+
+    .chat-input-field::placeholder {
+      color: rgba(148, 163, 184, 0.6);
+    }
+
+    .btn-chat-mic {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #e2e8f0;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 1.1rem;
+    }
+
+    .btn-chat-mic.listening {
+      background: rgba(244, 63, 94, 0.3);
+      border-color: #f43f5e;
+      color: #ffffff;
+      animation: pulse-mic 1.2s infinite;
+    }
+
+    @keyframes pulse-mic {
+      0%, 100% { box-shadow: 0 0 0 rgba(244, 63, 94, 0.6); }
+      50% { box-shadow: 0 0 16px rgba(244, 63, 94, 0.9); }
+    }
+
+    .btn-chat-send {
+      background: linear-gradient(135deg, #00f0ff, #0284c7);
+      border: none;
+      color: #030712;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-chat-send:hover {
+      background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+      box-shadow: 0 0 14px rgba(0, 240, 255, 0.6);
+      transform: scale(1.02);
+    }
+
+    .btn-chat-send:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Mobile Responsive Adaptation */
+    @media (max-width: 720px) {
+      .dossier-card {
+        grid-template-columns: 1fr;
+        padding: 14px;
+        gap: 14px;
+      }
+      .dossier-photo-wrap {
+        max-height: 200px;
+        aspect-ratio: 16 / 9;
+      }
+      .dossier-grid {
+        grid-template-columns: 1fr;
+      }
+      .dossier-title {
+        font-size: 1.25rem;
+      }
+      .chat-stream-box {
+        max-height: 380px;
+      }
+      .detail-container {
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Tactical Navigation Bar -->
+  <header class="detail-nav-bar">
+    <a href="{{ base_path }}/" class="btn-nav-back" title="Kembali ke Kokpit Kamera">
+      <span>← KOKPIT SCANNER</span>
+    </a>
+    <div class="nav-status-badge">
+      <span class="nav-status-dot"></span>
+      <span id="navStatusLabel">DOSSIER TERVERIFIKASI</span>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="detail-container">
+
+    <!-- Hero Dossier Card -->
+    <section class="dossier-card" id="dossierCard">
+      <!-- Media Col: Foto Snapshot -->
+      <div class="dossier-media-col">
+        <div class="dossier-photo-wrap" id="dossierPhotoWrap">
+          <div class="dossier-photo-crosshair"></div>
+          <div class="dossier-photo-placeholder" id="photoPlaceholder">
+            <span class="icon">📷</span>
+            <span>Snapshot Kamera</span>
+          </div>
+          <img id="dossierPhotoImg" class="dossier-photo-img" style="display: none;" alt="Foto Objek Terkunci">
+        </div>
+      </div>
+
+      <!-- Info Col: Metadata & Structured Grid -->
+      <div class="dossier-info-col">
+        <div class="dossier-header-meta">
+          <span class="badge-tag badge-cat" id="badgeCategory">OBJEK</span>
+          <span class="badge-tag badge-source" id="badgeSource">AI LIVE</span>
+          <span class="badge-tag badge-safety-aman" id="badgeSafety">AMAN</span>
+          <span class="badge-tag badge-cat" id="badgeScore" style="display: none;">100%</span>
+        </div>
+
+        <h1 class="dossier-title" id="dossierTitle">Memuat Objek...</h1>
+
+        <div class="dossier-grid">
+          <div class="dossier-grid-item">
+            <div class="grid-item-label">🛠️ FUNGSI UTAMA</div>
+            <div class="grid-item-val" id="dossierUtility">-</div>
+          </div>
+          <div class="dossier-grid-item">
+            <div class="grid-item-label">📋 DETAIL & CIRI</div>
+            <div class="grid-item-val" id="dossierDetail">-</div>
+          </div>
+          <div class="dossier-grid-item">
+            <div class="grid-item-label">💡 REKOMENDASI AI</div>
+            <div class="grid-item-val" id="dossierExtraTip">-</div>
+          </div>
+          <div class="dossier-grid-item">
+            <div class="grid-item-label">🛡️ KEAMANAN & RISIKO</div>
+            <div class="grid-item-val" id="dossierSafetyNote">-</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI Interactive Chat Room -->
+    <section class="chat-section">
+      <div class="chat-header">
+        <div class="chat-title-group">
+          <h3>💬 Diskusi Interaktif AI</h3>
+          <p>Tanyakan detail penggunaan, spesifikasi, tips perawatan, atau aspek keselamatan.</p>
+        </div>
+        <span class="chat-ai-engine-tag" id="engineTag">Gemini Vision // Online</span>
+      </div>
+
+      <!-- Quick Prompt Chips -->
+      <div class="prompt-chips-wrap">
+        <button type="button" class="prompt-chip" data-prompt="Apa fungsi dan kegunaan utama objek ini?">
+          🔍 Fungsi Utama?
+        </button>
+        <button type="button" class="prompt-chip" data-prompt="Bagaimana cara merawat atau membersihkan benda ini dengan aman?">
+          🧼 Tips Perawatan
+        </button>
+        <button type="button" class="prompt-chip" data-prompt="Apakah ada risiko bahaya atau hal yang harus diwaspadai dari objek ini?">
+          ⚠️ Bahaya & Risiko
+        </button>
+        <button type="button" class="prompt-chip" data-prompt="Berapa perkiraan harga pasaran atau spesifikasi umumnya?">
+          💰 Spesifikasi & Nilai
+        </button>
+        <button type="button" class="prompt-chip" data-prompt="Bagaimana cara daur ulang atau pembuangan yang benar untuk benda ini?">
+          ♻️ Daur Ulang
+        </button>
+      </div>
+
+      <!-- Message Stream Box -->
+      <div class="chat-stream-box" id="chatStreamBox">
+        <!-- Welcoming Assistant Bubble -->
+        <div class="chat-msg assistant">
+          <span class="msg-sender-tag">BENGGALA TACTICAL AI</span>
+          <div class="msg-bubble" id="welcomeBubble">
+            Halo! Saya siap membantu Anda menganalisis dan mendiskusikan objek ini secara mendalam. Silakan tanyakan hal apa pun yang ingin Anda ketahui.
+          </div>
+          <div class="msg-actions">
+            <button type="button" class="btn-msg-action" onclick="speakText(this)">🔊 Dengar</button>
+            <button type="button" class="btn-msg-action" onclick="copyText(this)">📋 Salin</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Thinking Indicator (Hidden by default) -->
+      <div class="chat-thinking" id="chatThinking" style="display: none;">
+        <div class="thinking-spinner"></div>
+        <span>Benggala AI sedang menganalisis objek...</span>
+      </div>
+
+      <!-- Chat Input Bar -->
+      <div class="chat-input-bar">
+        <button type="button" class="btn-chat-mic" id="btnChatMic" title="Bicara (Voice Input)">
+          🎤
+        </button>
+        <input type="text" id="chatInput" class="chat-input-field" placeholder="Ketik pertanyaan seputar objek ini..." autocomplete="off">
+        <button type="button" id="btnChatSend" class="btn-chat-send" title="Kirim Pertanyaan">
+          <span>Kirim</span>
+          <span>🚀</span>
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    (function() {
+      'use strict';
+
+      const BASE_PATH = "{{ base_path }}";
+      const CSRF_TOKEN = "{{ csrf_token }}";
+      const TARGET_LABEL_PARAM = "{{ target_label }}";
+
+      let activeItem = null;
+      let chatHistory = [];
+      let isAiResponding = false;
+      let speechRecognition = null;
+      let isRecognizing = false;
+
+      // 1. Inisialisasi Data Objek Terkunci dari SessionStorage
+      function initItemData() {
+        try {
+          const rawSession = sessionStorage.getItem('benggala_locked_item');
+          if (rawSession) {
+            activeItem = JSON.parse(rawSession);
+          }
+        } catch (e) {
+          console.warn('Gagal membaca benggala_locked_item dari sessionStorage:', e);
+        }
+
+        // Fallback jika dibuka langsung via URL argumen ?label=...
+        if (!activeItem || !activeItem.label) {
+          const fallbackLabel = TARGET_LABEL_PARAM || 'Objek Terdeteksi';
+          activeItem = {
+            label: fallbackLabel,
+            title: fallbackLabel,
+            category: 'OBJEK',
+            utility: 'Objek diperiksa melalui antarmuka intelijen taktis.',
+            detail: 'Informasi awal dievaluasi oleh sistem pengenalan objek.',
+            extra_tip: 'Tanyakan kepada AI untuk panduan pemakaian lebih spesifik.',
+            safety: 'aman',
+            safetyNote: 'Aman dalam penggunaan standar.',
+            source: 'AI LIVE',
+            image: null
+          };
+        }
+
+        renderDossier(activeItem);
+      }
+
+      // 2. Render Tampilan Hero Dossier
+      function renderDossier(item) {
+        document.title = `${item.title || item.label} // Benggala Vision`;
+        document.getElementById('dossierTitle').textContent = item.title || item.label;
+        document.getElementById('badgeCategory').textContent = (item.category || 'OBJEK').toUpperCase();
+        document.getElementById('badgeSource').textContent = (item.source || 'AI LIVE').toUpperCase();
+
+        // Safety Badge
+        const safetyEl = document.getElementById('badgeSafety');
+        const s = (item.safety || 'aman').toLowerCase();
+        safetyEl.className = 'badge-tag';
+        if (s === 'bahaya') {
+          safetyEl.classList.add('badge-safety-bahaya');
+          safetyEl.textContent = 'BAHAYA';
+        } else if (s === 'waspada') {
+          safetyEl.classList.add('badge-safety-waspada');
+          safetyEl.textContent = 'WASPADA';
+        } else {
+          safetyEl.classList.add('badge-safety-aman');
+          safetyEl.textContent = 'AMAN';
+        }
+
+        // Score Badge
+        const scoreEl = document.getElementById('badgeScore');
+        if (item.score && item.score > 0) {
+          scoreEl.textContent = `${item.score}% AKURASI`;
+          scoreEl.style.display = 'inline-block';
+        }
+
+        // Grid Details
+        document.getElementById('dossierUtility').textContent = item.utility || 'Tidak ada data spesifik.';
+        document.getElementById('dossierDetail').textContent = item.detail || 'Data ciri visual dalam evaluasi.';
+        document.getElementById('dossierExtraTip').textContent = item.extra_tip || 'Gunakan sesuai instruksi dan standar pabrikan.';
+        document.getElementById('dossierSafetyNote').textContent = item.safetyNote || 'Amati secara saksama.';
+
+        // Photo Snapshot
+        const photoImg = document.getElementById('dossierPhotoImg');
+        const placeholder = document.getElementById('photoPlaceholder');
+        if (item.image) {
+          photoImg.src = item.image;
+          photoImg.style.display = 'block';
+          if (placeholder) placeholder.style.display = 'none';
+        } else {
+          photoImg.style.display = 'none';
+          if (placeholder) placeholder.style.display = 'flex';
+        }
+
+        // Welcome Message Update
+        const welcomeEl = document.getElementById('welcomeBubble');
+        if (welcomeEl) {
+          welcomeEl.innerHTML = `Halo! Saya siap mendampingi Anda menganalisis objek <strong>${escapeHtml(item.title || item.label)}</strong>. Anda dapat bertanya tentang fungsi, bahan, perawatan, atau aspek keamanannya.`;
+        }
+      }
+
+      // 3. Helper Sanitasi HTML & Format Markdown Ringan
+      function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+          .split('&').join('&amp;')
+          .split('<').join('&lt;')
+          .split('>').join('&gt;')
+          .split('"').join('&quot;')
+          .split("'").join('&#39;');
+      }
+
+      function formatMarkdown(text) {
+        if (!text) return '';
+        let clean = escapeHtml(text);
+        // Bold: **teks**
+        clean = clean.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        // Italic: *teks*
+        clean = clean.replace(/\*(.*?)\*/g, '<em>$1</em>');
+        // Bullet points
+        const lines = clean.split('\n');
+        let inList = false;
+        let outHtml = [];
+
+        for (let line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('• ') || trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+            if (!inList) {
+              outHtml.push('<ul>');
+              inList = true;
+            }
+            outHtml.push(`<li>${trimmed.substring(2)}</li>`);
+          } else {
+            if (inList) {
+              outHtml.push('</ul>');
+              inList = false;
+            }
+            if (trimmed) {
+              outHtml.push(`<p>${trimmed}</p>`);
+            }
+          }
+        }
+        if (inList) outHtml.push('</ul>');
+        return outHtml.join('');
+      }
+
+      // 4. Tambah Pesan ke Stream Chat
+      function appendMessage(role, text) {
+        const streamBox = document.getElementById('chatStreamBox');
+        if (!streamBox) return;
+
+        const isUser = (role === 'user');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `chat-msg ${isUser ? 'user' : 'assistant'}`;
+
+        const senderTag = document.createElement('span');
+        senderTag.className = 'msg-sender-tag';
+        senderTag.textContent = isUser ? 'PENGGUNA' : 'BENGGALA TACTICAL AI';
+
+        const bubbleDiv = document.createElement('div');
+        bubbleDiv.className = 'msg-bubble';
+        if (isUser) {
+          bubbleDiv.textContent = text;
+        } else {
+          bubbleDiv.innerHTML = formatMarkdown(text);
+        }
+
+        msgDiv.appendChild(senderTag);
+        msgDiv.appendChild(bubbleDiv);
+
+        if (!isUser) {
+          const actionsDiv = document.createElement('div');
+          actionsDiv.className = 'msg-actions';
+          actionsDiv.innerHTML = `
+            <button type="button" class="btn-msg-action" onclick="speakText(this)">🔊 Dengar</button>
+            <button type="button" class="btn-msg-action" onclick="copyText(this)">📋 Salin</button>
+          `;
+          msgDiv.appendChild(actionsDiv);
+        }
+
+        streamBox.appendChild(msgDiv);
+        streamBox.scrollTop = streamBox.scrollHeight;
+
+        // Catat ke riwayat
+        chatHistory.push({ role, content: text });
+      }
+
+      // 5. Kirim Pertanyaan ke Backend AI
+      async function sendMessage(userText) {
+        const text = String(userText || '').trim();
+        if (!text || isAiResponding) return;
+
+        appendMessage('user', text);
+        const inputField = document.getElementById('chatInput');
+        if (inputField) inputField.value = '';
+
+        const thinkingEl = document.getElementById('chatThinking');
+        const sendBtn = document.getElementById('btnChatSend');
+        if (thinkingEl) thinkingEl.style.display = 'flex';
+        if (sendBtn) sendBtn.disabled = true;
+        isAiResponding = true;
+
+        const streamBox = document.getElementById('chatStreamBox');
+        streamBox.scrollTop = streamBox.scrollHeight;
+
+        try {
+          const payload = {
+            message: text,
+            history: chatHistory.slice(-6),
+            item_context: activeItem,
+            image: activeItem ? activeItem.image : null
+          };
+
+          const res = await fetch(`${BASE_PATH}/api/ai/chat-item`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': CSRF_TOKEN
+            },
+            body: JSON.stringify(payload)
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.message || `HTTP ${res.status}`);
+          }
+
+          const resJson = await res.json();
+          if (resJson && resJson.status === 'ok') {
+            appendMessage('assistant', resJson.reply || 'Tidak ada respon teks.');
+            if (resJson.provider) {
+              const engTag = document.getElementById('engineTag');
+              if (engTag) engTag.textContent = `${resJson.provider.toUpperCase()} // Online`;
+            }
+          } else {
+            throw new Error(resJson.message || 'Gagal memproses jawaban AI.');
+          }
+        } catch (err) {
+          console.error('Chat AI error:', err);
+          appendMessage('assistant', `⚠️ Maaf, terjadi kendala koneksi ke server AI (${err.message}). Silakan coba beberapa saat lagi.`);
+        } finally {
+          if (thinkingEl) thinkingEl.style.display = 'none';
+          if (sendBtn) sendBtn.disabled = false;
+          isAiResponding = false;
+        }
+      }
+
+      // 6. Voice Input (Speech Recognition)
+      function setupSpeechRecognition() {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const micBtn = document.getElementById('btnChatMic');
+        if (!SpeechRec || !micBtn) {
+          if (micBtn) micBtn.title = 'Voice recognition tidak didukung peramban ini';
+          return;
+        }
+
+        speechRecognition = new SpeechRec();
+        speechRecognition.lang = 'id-ID';
+        speechRecognition.interimResults = false;
+        speechRecognition.maxAlternatives = 1;
+
+        speechRecognition.onstart = () => {
+          isRecognizing = true;
+          micBtn.classList.add('listening');
+          micBtn.title = 'Mendengarkan suara... Silakan bicara';
+        };
+
+        speechRecognition.onend = () => {
+          isRecognizing = false;
+          micBtn.classList.remove('listening');
+          micBtn.title = 'Bicara (Voice Input)';
+        };
+
+        speechRecognition.onerror = (e) => {
+          console.warn('Speech recognition error:', e);
+          isRecognizing = false;
+          micBtn.classList.remove('listening');
+        };
+
+        speechRecognition.onresult = (event) => {
+          if (event.results && event.results[0] && event.results[0][0]) {
+            const transcript = event.results[0][0].transcript;
+            const inputField = document.getElementById('chatInput');
+            if (inputField) {
+              inputField.value = transcript;
+              sendMessage(transcript);
+            }
+          }
+        };
+
+        micBtn.addEventListener('click', () => {
+          if (!speechRecognition) return;
+          if (isRecognizing) {
+            speechRecognition.stop();
+          } else {
+            try {
+              speechRecognition.start();
+            } catch (err) {
+              console.warn('Start recognition failed:', err);
+            }
+          }
+        });
+      }
+
+      // 7. Event Listener Binding
+      document.addEventListener('DOMContentLoaded', () => {
+        initItemData();
+        setupSpeechRecognition();
+
+        // Tombol Kirim Chat
+        const sendBtn = document.getElementById('btnChatSend');
+        const inputField = document.getElementById('chatInput');
+        if (sendBtn && inputField) {
+          sendBtn.addEventListener('click', () => sendMessage(inputField.value));
+          inputField.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              sendMessage(inputField.value);
+            }
+          });
+        }
+
+        // Prompt Suggestion Chips
+        document.querySelectorAll('.prompt-chip').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const prompt = btn.getAttribute('data-prompt');
+            if (prompt) sendMessage(prompt);
+          });
+        });
+      });
+
+      // 8. Global Helper: Text-to-Speech & Clipboard Copy
+      window.speakText = function(btnEl) {
+        const msgDiv = btnEl.closest('.chat-msg');
+        if (!msgDiv) return;
+        const bubble = msgDiv.querySelector('.msg-bubble');
+        if (!bubble) return;
+        const textToSpeak = bubble.innerText || bubble.textContent || '';
+        if (!textToSpeak) return;
+
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(textToSpeak);
+          utterance.lang = 'id-ID';
+          utterance.rate = 1.05;
+          window.speechSynthesis.speak(utterance);
+        }
+      };
+
+      window.copyText = function(btnEl) {
+        const msgDiv = btnEl.closest('.chat-msg');
+        if (!msgDiv) return;
+        const bubble = msgDiv.querySelector('.msg-bubble');
+        if (!bubble) return;
+        const textToCopy = bubble.innerText || bubble.textContent || '';
+        if (!textToCopy) return;
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(textToCopy).then(() => {
+            const orig = btnEl.textContent;
+            btnEl.textContent = '✓ Tersalin';
+            setTimeout(() => { btnEl.textContent = orig; }, 2000);
+          }).catch(() => {});
+        }
+      };
+
+    })();
+  </script>
+</body>
+</html>
