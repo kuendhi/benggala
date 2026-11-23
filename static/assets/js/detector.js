@@ -353,6 +353,178 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // =========================================================================
+  // Helper Pemotong Area Titik Bidik Independen & Aksi Pindai AI (Task 19B)
+  // =========================================================================
+  /**
+   * Memotong area proporsional 45% sisi terpendek yang berpusat pada titik bidik
+   * dan mengekspor sebagai image/jpeg base64 (maks 512x512).
+   */
+  function captureReticleCrop(videoEl, focusNormX = 0.5, focusNormY = 0.5, cropRatio = 0.45, returnDetails = false) {
+    const vEl = videoEl || video || document.getElementById('webcam');
+    if (!vEl || !vEl.videoWidth || !vEl.videoHeight) return null;
+
+    const vw = vEl.videoWidth;
+    const vh = vEl.videoHeight;
+
+    // Evaluasi koordinat fokus aktif
+    let normX = focusNormX;
+    let normY = focusNormY;
+
+    if (focusState.active && focusState.canvasX !== null && focusState.canvasY !== null && canvas && canvas.width && canvas.height) {
+      normX = Math.max(0.05, Math.min(0.95, focusState.canvasX / canvas.width));
+      normY = Math.max(0.05, Math.min(0.95, focusState.canvasY / canvas.height));
+    }
+
+    // Perhitungkan Smooth Digital Zoom jika aktif
+    let centerRawX = normX * vw;
+    let centerRawY = normY * vh;
+    let shortestSide = Math.min(vw, vh);
+
+    if (currentZoom > 1.05) {
+      const cropW_zoom = vw / currentZoom;
+      const cropH_zoom = vh / currentZoom;
+      const cropX_zoom = (vw - cropW_zoom) / 2;
+      const cropY_zoom = (vh - cropH_zoom) / 2;
+      centerRawX = cropX_zoom + (normX * cropW_zoom);
+      centerRawY = cropY_zoom + (normY * cropH_zoom);
+      shortestSide = Math.min(cropW_zoom, cropH_zoom);
+    }
+
+    const cropDim = Math.max(80, Math.round(shortestSide * (cropRatio || 0.45)));
+    const halfDim = Math.round(cropDim / 2);
+
+    let cropX = Math.round(centerRawX - halfDim);
+    let cropY = Math.round(centerRawY - halfDim);
+
+    // Clamping batas video
+    if (cropX < 0) cropX = 0;
+    if (cropY < 0) cropY = 0;
+    if (cropX + cropDim > vw) cropX = Math.max(0, vw - cropDim);
+    if (cropY + cropDim > vh) cropY = Math.max(0, vh - cropDim);
+
+    const finalW = Math.min(cropDim, vw - cropX);
+    const finalH = Math.min(cropDim, vh - cropY);
+
+    const offCanvas = document.createElement('canvas');
+    const targetDim = Math.min(512, Math.max(256, Math.max(finalW, finalH)));
+    offCanvas.width = targetDim;
+    offCanvas.height = targetDim;
+    const offCtx = offCanvas.getContext('2d');
+    offCtx.drawImage(vEl, cropX, cropY, finalW, finalH, 0, 0, targetDim, targetDim);
+
+    const dataUrl = offCanvas.toDataURL('image/jpeg', 0.82);
+
+    if (returnDetails) {
+      return {
+        dataUrl,
+        bbox: [cropX, cropY, finalW, finalH],
+        canvas: offCanvas
+      };
+    }
+
+    return dataUrl;
+  }
+
+  window.captureReticleCrop = captureReticleCrop;
+
+  /**
+   * Helper Pengiriman HTTP POST aman dengan CSRF token
+   */
+  async function postWithCsrf(endpoint, data) {
+    const base = (window.BASE_PATH || '').replace(/\/+$/, '');
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const token = getCsrfToken();
+    const res = await fetch(`${base}${cleanEndpoint}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': token
+      },
+      body: JSON.stringify(data || {})
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.message || `HTTP ${res.status}`);
+    }
+    return await res.json();
+  }
+
+  window.postWithCsrf = postWithCsrf;
+
+  /**
+   * Aksi Pindai Titik Bidik Independen (Task 19B: Bypass COCO-SSD)
+   * Mengirimkan potongan titik bidik dengan label kosong & scan_mode="reticle_crop"
+   */
+  async function triggerReticleScan() {
+    if (!isStreaming || !video || video.readyState < 2) {
+      showToast('⚠️ Nyalakan kamera sensor terlebih dahulu untuk memindai.', 'info');
+      return;
+    }
+
+    const btnReticle = document.getElementById('btnScanReticle');
+    const btnPill = document.getElementById('btnReticleScanPill');
+    const origReticleText = btnReticle ? btnReticle.innerHTML : '';
+    const origPillText = btnPill ? btnPill.innerHTML : '';
+
+    if (btnReticle) {
+      btnReticle.disabled = true;
+      btnReticle.innerHTML = '⏳';
+    }
+    if (btnPill) {
+      btnPill.disabled = true;
+      btnPill.innerHTML = '⏳ Memindai...';
+    }
+
+    showToast('🎯 Mengambil potongan fokus titik bidik & menghubungi Gemini Vision...', 'info');
+
+    try {
+      // 1. Tangkap potongan titik bidik (Reticle Crop)
+      const cropImage = captureReticleCrop(video, 0.5, 0.5, 0.45);
+      if (!cropImage) {
+        throw new Error('Gagal menangkap frame video kamera.');
+      }
+
+      // 2. Kirim ke endpoint /api/ai/quick-detail dengan scan_mode = "reticle_crop" dan label = ""
+      const payload = {
+        image: cropImage,
+        scan_mode: 'reticle_crop',
+        label: ''
+      };
+
+      const resJson = await postWithCsrf('/api/ai/quick-detail', payload);
+
+      if (resJson && resJson.status === 'ok' && resJson.data) {
+        const objData = resJson.data;
+        showToast(`✨ Teridentifikasi: [${objData.title}] (${objData.category})`, 'success');
+
+        // 3. Tampilkan pada Kartu AR Futuristik tertambat ke titik bidik aktif
+        if (window.BenggalaArCallout && typeof window.BenggalaArCallout.showReticleScanResult === 'function') {
+          const targetCoords = (focusState.active && focusState.canvasX !== null && focusState.canvasY !== null)
+            ? { x: focusState.canvasX, y: focusState.canvasY }
+            : { x: (canvas.width || 640) / 2, y: (canvas.height || 480) / 2 };
+
+          window.BenggalaArCallout.showReticleScanResult(objData, targetCoords, canvas);
+        }
+      } else {
+        throw new Error(resJson.message || 'Respons AI tidak valid.');
+      }
+    } catch (err) {
+      console.error('[ReticleScan] Error:', err);
+      showToast(`❌ Gagal pindai titik: ${err.message}`, 'error');
+    } finally {
+      if (btnReticle) {
+        btnReticle.disabled = false;
+        btnReticle.innerHTML = origReticleText;
+      }
+      if (btnPill) {
+        btnPill.disabled = false;
+        btnPill.innerHTML = origPillText;
+      }
+    }
+  }
+
   function handleDoubleTapFocus(clientX, clientY) {
     if (!overlay || !canvas) return;
 
@@ -1339,15 +1511,34 @@ document.addEventListener('DOMContentLoaded', () => {
       : null;
     const nowPerf = performance.now();
 
-    if (targetPred && window.BenggalaKnowledge && typeof window.BenggalaKnowledge.isReady === 'function' && window.BenggalaKnowledge.isReady()) {
+    if (window.BenggalaKnowledge && typeof window.BenggalaKnowledge.isReady === 'function' && window.BenggalaKnowledge.isReady()) {
       if (!isKnnClassifying && (nowPerf - lastKnnCheckTime > 350)) {
         lastKnnCheckTime = nowPerf;
         isKnnClassifying = true;
-        window.BenggalaKnowledge.classifyBox(video, targetPred.bbox)
+
+        // Evaluasi bbox target objek COCO-SSD jika ada, atau evaluasi reticle crop jika COCO-SSD = 0 (Task 19B)
+        let bboxToClassify = null;
+        if (targetPred && targetPred.bbox) {
+          bboxToClassify = targetPred.bbox;
+        } else {
+          const shortest = Math.min(vw, vh);
+          const rSize = Math.round(shortest * 0.45);
+          const fx = (focusState.active && focusState.canvasX !== null) ? focusState.canvasX : (vw / 2);
+          const fy = (focusState.active && focusState.canvasY !== null) ? focusState.canvasY : (vh / 2);
+          bboxToClassify = [
+            Math.max(0, Math.round(fx - rSize / 2)),
+            Math.max(0, Math.round(fy - rSize / 2)),
+            rSize,
+            rSize
+          ];
+        }
+
+        window.BenggalaKnowledge.classifyBox(video, bboxToClassify)
           .then(match => {
             if (match && match.label) {
               lastKnnMatch = match;
               lastKnnMatchTime = performance.now();
+              lastKnnMatch.bbox = bboxToClassify;
             }
           })
           .catch(err => console.warn('KNN classify error:', err))
@@ -1358,16 +1549,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Terapkan label kustom jika match masih dalam masa aktif (~800ms)
+    let finalFiltered = filtered;
     if (targetPred && lastKnnMatch && (nowPerf - lastKnnMatchTime < 800)) {
       targetPred.customLabel = lastKnnMatch.label;
       targetPred.isCustom = true;
       targetPred.class = lastKnnMatch.label;
+    } else if ((!filtered || filtered.length === 0) && lastKnnMatch && (nowPerf - lastKnnMatchTime < 800) && lastKnnMatch.bbox) {
+      // Task 19B: Munculkan objek virtual terlatih di titik bidik saat COCO-SSD 0
+      finalFiltered = [{
+        class: lastKnnMatch.label,
+        customLabel: lastKnnMatch.label,
+        isCustom: true,
+        isKnnOnly: true,
+        score: lastKnnMatch.confidence || 0.85,
+        bbox: lastKnnMatch.bbox
+      }];
     }
 
     // Update state prediksi global untuk snapshot, dossier, dsb.
-    currentPredictions = filtered;
-    lastPredictions = filtered;
-    activePredictionsForRender = filtered;
+    currentPredictions = finalFiltered;
+    lastPredictions = finalFiltered;
+    activePredictionsForRender = finalFiltered;
 
     // Pengecekan Otomatis Mode CCTV Pintar
     if (window.BenggalaCCTV && window.BenggalaCCTV.isActive && filtered.length > 0) {
@@ -2858,6 +3060,18 @@ document.addEventListener('DOMContentLoaded', () => {
   updateFilterBgUi(window.IGNORE_BG_MODE);
 
   // =========================================================================
+  // Event Listeners Pindai Titik Bidik (Task 19B: Reticle Scan)
+  // =========================================================================
+  const btnScanReticle = document.getElementById('btnScanReticle');
+  if (btnScanReticle) {
+    btnScanReticle.addEventListener('click', triggerReticleScan);
+  }
+  const btnReticleScanPill = document.getElementById('btnReticleScanPill');
+  if (btnReticleScanPill) {
+    btnReticleScanPill.addEventListener('click', triggerReticleScan);
+  }
+
+  // =========================================================================
   // Event Listeners Smooth Zoom (Slider, Tombol Step, Mouse Wheel, Touch Pinch)
   // =========================================================================
   if (zoomSlider) {
@@ -3646,6 +3860,9 @@ document.addEventListener('DOMContentLoaded', () => {
   window.loadSettings = loadSettings;
   window.getActiveTargetPrediction = () => latestActivePrediction;
   window.setIgnoreBgMode = setIgnoreBgMode;
+  window.triggerReticleScan = triggerReticleScan;
+  window.captureReticleCrop = captureReticleCrop;
+  window.postWithCsrf = postWithCsrf;
 
   // Muat pengaturan awal dari database
   loadSettings();

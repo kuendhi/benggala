@@ -93,8 +93,13 @@
 
     <!-- 2. Viewport Full-Bleed (.cockpit-viewport) -->
     <main class="cockpit-viewport">
-      <!-- Tombol Reset Fokus (Task 15) -->
-      <button id="btnResetFocus" class="hud-reset-focus hidden" title="Kembalikan fokus ke tengah">🎯 FOKUS TERKUNCI • ✕ RESET</button>
+      <!-- Tombol Aksi Titik Bidik & Reset Fokus (Task 15 & Task 19B) -->
+      <div class="hud-top-actions" style="position: absolute; top: 56px; left: 50%; transform: translateX(-50%); z-index: 50; display: flex; gap: 8px; align-items: center; pointer-events: auto;">
+        <button type="button" id="btnReticleScanPill" class="btn btn-primary" style="padding: 6px 14px; font-size: 0.76rem; font-weight: 700; background: rgba(0, 240, 255, 0.22); border: 1px solid #00f0ff; color: #fff; box-shadow: 0 0 14px rgba(0, 240, 255, 0.4); border-radius: 20px; backdrop-filter: blur(8px); cursor: pointer;" title="🎯 Pindai Objek di Titik Bidik (Bypass COCO-SSD dengan Gemini Vision)">
+          🎯 Pindai Titik
+        </button>
+        <button id="btnResetFocus" class="hud-reset-focus hidden" style="position: static; transform: none;" title="Kembalikan fokus ke tengah">🎯 FOKUS TERKUNCI • ✕ RESET</button>
+      </div>
 
       <div class="camera-container" id="cameraContainer">
         <!-- Stage Pembungkus Kamera untuk Framing Contain & Smooth Zoom -->
@@ -617,6 +622,7 @@
       <button type="button" id="btnOrientation" class="btn-zoom-step" title="Orientasi Layar: Portrait (9:16) / Widescreen (16:9) / Auto">📱</button>
       <button type="button" id="btnDisplayMode" class="btn-zoom-step" title="Mode Framing: Proporsional (Fit) / Layar Penuh (Fill)">⛶</button>
       <button type="button" id="btnToggleFilterBg" class="btn-zoom-step active" title="🛡️ Filter Background Besar (Sofa/Meja/Kasur): Aktif • Klik untuk Matikan" style="color: #10b981; border-color: rgba(16, 185, 129, 0.45); background: rgba(16, 185, 129, 0.15);">🛡️</button>
+      <button type="button" id="btnScanReticle" class="btn-zoom-step btn-scan-reticle" title="🎯 Pindai Objek di Titik Bidik (Gemini Vision)" style="color: #00f0ff; border-color: rgba(0, 240, 255, 0.45); background: rgba(0, 240, 255, 0.15); font-weight: bold;">🎯</button>
       <button type="button" id="btnOpenKnowledge" class="btn-zoom-step" title="🎯 Latih Objek (KNN Classifier)" style="color: #fbbf24; border-color: rgba(251, 191, 36, 0.4);">🎯</button>
       <button type="button" id="btnZoomOut" class="btn-zoom-step" title="Zoom Out (−0.1x)">−</button>
       <input type="range" id="zoomSlider" min="1" max="3" step="0.05" value="1" title="Geser Zoom (1.0x - 3.0x)">

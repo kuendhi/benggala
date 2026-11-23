@@ -21,6 +21,11 @@
   let currentOptions = {};
   let animationFrameId = null;
 
+  // State Khusus Pindai Titik Bidik (Task 19B: Reticle Scan Pinning)
+  let reticleScanPinnedTarget = null;
+  let reticleScanPinnedProfile = null;
+  let reticleScanPinnedExpires = 0;
+
   // Konfigurasi
   const LERP_FACTOR = 0.22;
   const HIDE_TIMEOUT_MS = 600;
@@ -56,6 +61,7 @@
   function getThemeColor(profile) {
     if (!profile) return '#00f0ff';
     if (profile.safety === 'bahaya') return '#ef4444';
+    if (profile.source === 'BIDIK AI' || profile.scan_mode === 'reticle_crop') return '#00f0ff';
     if (profile.source === 'AI LIVE') return '#10b981';
     if (profile.source === 'MEMORI DB') return '#fbbf24';
     return '#00f0ff'; // LOKAL Default (Cyan Neon)
@@ -63,8 +69,13 @@
 
   /**
    * Sembunyikan kartu AR dan bersihkan SVG
+   * @param {boolean} [force=false] Jika true, paksa hide meskipun ada reticle scan yang sedang dipin
    */
-  function hide() {
+  function hide(force = false) {
+    if (!force && performance.now() < reticleScanPinnedExpires) {
+      // Masih dalam masa pin hasil reticle scan, jangan hide otomatis
+      return;
+    }
     if (!cardEl && !initElements()) return;
     if (cardEl) {
       cardEl.classList.add('hidden');
@@ -76,6 +87,9 @@
     currentX = null;
     currentY = null;
     activePredictionRef = null;
+    reticleScanPinnedTarget = null;
+    reticleScanPinnedProfile = null;
+    reticleScanPinnedExpires = 0;
   }
 
   /**
@@ -164,12 +178,16 @@
     if (!cardEl) return;
 
     const sourceBadgeMap = {
+      'BIDIK AI': '<span class="ar-badge-source source-ai" style="background: rgba(0, 240, 255, 0.25); color: #00f0ff; border-color: rgba(0, 240, 255, 0.55); font-weight: 700;">🎯 BIDIK AI</span>',
       'AI LIVE': '<span class="ar-badge-source source-ai">✨ AI LIVE</span>',
       'MEMORI DB': '<span class="ar-badge-source source-db">★ DB</span>',
       'LOKAL': '<span class="ar-badge-source source-local">⚡ LOKAL</span>'
     };
 
-    const sourceHtml = sourceBadgeMap[profile.source] || '<span class="ar-badge-source source-local">⚡ LOKAL</span>';
+    const isBidikAi = (profile.source === 'BIDIK AI' || profile.scan_mode === 'reticle_crop');
+    const sourceHtml = isBidikAi
+      ? sourceBadgeMap['BIDIK AI']
+      : (sourceBadgeMap[profile.source] || '<span class="ar-badge-source source-local">⚡ LOKAL</span>');
     const categoryHtml = `<span class="ar-badge-category">${escapeHtml(profile.category || 'OBJEK')}</span>`;
     const scoreVal = prediction && typeof prediction.score === 'number' ? Math.round(prediction.score * 100) : 0;
     const scoreHtml = scoreVal > 0 ? `<span class="ar-badge-score">${scoreVal}%</span>` : '';
@@ -227,8 +245,8 @@
           <span class="ar-safety-dot"></span>
           <span class="ar-safety-text">${safetyLabel}</span>
         </div>
-        ${profile.source === 'AI LIVE' ? `
-          <span class="ar-badge-source source-ai" style="padding: 3px 6px; font-weight: 700;">✓ AI LIVE</span>
+        ${(profile.source === 'AI LIVE' || isBidikAi) ? `
+          <span class="ar-badge-source source-ai" style="padding: 3px 6px; font-weight: 700;">${isBidikAi ? '✓ BIDIK AI' : '✓ AI LIVE'}</span>
         ` : `
           <button type="button" id="btnArEnrichAi" class="ar-btn-enrich" title="Analisis visual mendalam dengan Gemini Vision">
             ✨ Detail AI
@@ -250,11 +268,15 @@
 
   /**
    * Menangkap frame kamera terkompresi ringan (maks 512px, JPEG 0.72) untuk efisiensi jaringan HP
+   * Jika window.captureReticleCrop tersedia, gunakan pemotongan fokus titik bidik
    */
   function captureCompressedFrame() {
     try {
       const videoEl = document.getElementById('webcam');
       if (!videoEl || !videoEl.videoWidth || !videoEl.videoHeight) return null;
+      if (typeof window.captureReticleCrop === 'function') {
+        return window.captureReticleCrop(videoEl, 0.5, 0.5, 0.45);
+      }
       const maxW = 512;
       const scale = Math.min(1, maxW / videoEl.videoWidth);
       const cw = Math.round(videoEl.videoWidth * scale);
@@ -445,7 +467,13 @@
 
     if (!initElements()) return;
 
-    // WAJIB (Task 18D): Popup detail HANYA boleh muncul jika target sudah TERKUNCI STABIL 6 DETIK (atau fokus manual)
+    // Task 19B: Prioritaskan pinned target dari hasil reticle scan jika masih aktif
+    if (now < reticleScanPinnedExpires && reticleScanPinnedTarget) {
+      primaryPrediction = reticleScanPinnedTarget;
+      options = { ...options, isLocked: true };
+    }
+
+    // WAJIB (Task 18D): Popup detail HANYA boleh muncul jika target sudah TERKUNCI STABIL 6 DETIK (atau fokus manual / reticle scan)
     const isLocked = options && options.isLocked;
     if (!isLocked) {
       if (isCardVisible) {
@@ -480,9 +508,11 @@
       h: screenBox.h
     };
 
-    // Ambil profil objek dari modul BenggalaObjectProfiles (Task 18A)
+    // Ambil profil objek: Jika reticle scan, gunakan profil yang dipin
     let profile = null;
-    if (window.BenggalaObjectProfiles && typeof window.BenggalaObjectProfiles.getProfile === 'function') {
+    if (primaryPrediction.isReticleScan && reticleScanPinnedProfile) {
+      profile = reticleScanPinnedProfile;
+    } else if (window.BenggalaObjectProfiles && typeof window.BenggalaObjectProfiles.getProfile === 'function') {
       profile = window.BenggalaObjectProfiles.getProfile(primaryPrediction.class, primaryPrediction.customMeta || null);
     } else {
       profile = {
@@ -564,6 +594,51 @@
     renderConnectorLine(box, { x: currentX, y: currentY, w: cardWidth, h: cardHeight }, side, themeColor);
   }
 
+  /**
+   * Menampilkan hasil pindai titik bidik (Reticle Scan) pada kartu AR tertambat ke titik bidik
+   * @param {Object} scanData Data JSON hasil Gemini Vision
+   * @param {Object} targetCoords Koordinat canvas { x, y } titik bidik
+   * @param {HTMLCanvasElement} [canvasEl] Elemen overlay canvas
+   */
+  function showReticleScanResult(scanData, targetCoords, canvasEl) {
+    if (!initElements() || !scanData) return;
+    const now = performance.now();
+    const cEl = canvasEl || document.getElementById('overlay');
+    const cx = (targetCoords && typeof targetCoords.x === 'number') ? targetCoords.x : ((cEl?.width || 640) / 2);
+    const cy = (targetCoords && typeof targetCoords.y === 'number') ? targetCoords.y : ((cEl?.height || 480) / 2);
+
+    const rSize = 36;
+    reticleScanPinnedTarget = {
+      class: scanData.title || 'Objek Terpindai',
+      score: 0.99,
+      bbox: [cx - rSize / 2, cy - rSize / 2, rSize, rSize],
+      isReticleScan: true
+    };
+
+    reticleScanPinnedProfile = {
+      title: scanData.title || 'Objek Terpindai',
+      category: scanData.category || 'BARANG',
+      utility: scanData.utility || 'Objek visual teridentifikasi.',
+      detail: scanData.detail || 'Hasil analisis Gemini Vision dari titik bidik.',
+      extra_tip: scanData.extra_tip || '',
+      safety: scanData.safety || 'aman',
+      safetyNote: scanData.safetyNote || 'Amati secara saksama.',
+      source: 'BIDIK AI',
+      scan_mode: 'reticle_crop'
+    };
+
+    // Pin hasil selama 15 detik atau hingga di-reset
+    reticleScanPinnedExpires = now + 15000;
+    activePredictionRef = reticleScanPinnedTarget;
+
+    // Simpan ke cache sesi jika BenggalaObjectProfiles tersedia
+    if (window.BenggalaObjectProfiles && typeof window.BenggalaObjectProfiles.setAiCache === 'function') {
+      window.BenggalaObjectProfiles.setAiCache(reticleScanPinnedProfile.title.toLowerCase(), reticleScanPinnedProfile);
+    }
+
+    update(reticleScanPinnedTarget, cEl, { isLocked: true });
+  }
+
   // =========================================================================
   // Expose API Global
   // =========================================================================
@@ -572,6 +647,7 @@
     hide,
     applyAiAnalysis,
     applyAiDetail: applyAiAnalysis,
+    showReticleScanResult,
     isVisible: () => isCardVisible,
     getTarget: () => activePredictionRef
   };

@@ -270,8 +270,14 @@ def _call_gemini_vision(
         missing_padding = len(clean_b64) % 4
         if missing_padding:
             clean_b64 += '=' * (4 - missing_padding)
+
+        if "HANYA JSON murni" in prompt or "Fokus HANYA pada objek utama" in prompt:
+            full_prompt_text = camera_target_intro
+        else:
+            full_prompt_text = camera_target_intro + "\nAnalisa juga secara visual dari foto terlampir: sebutkan kondisi, perkiraan ukuran, dan konteks dalam Bahasa Indonesia."
+
         parts.append({
-            "text": camera_target_intro + "\nAnalisa juga secara visual dari foto terlampir: sebutkan kondisi, perkiraan ukuran, dan konteks dalam Bahasa Indonesia."
+            "text": full_prompt_text
         })
         parts.append({
             "inline_data": {
@@ -619,24 +625,33 @@ def analyze_ai():
     system_prompt = payload.get('system_prompt') or payload.get('mission_prompt') or settings.get('system_prompt') or os.getenv('SYSTEM_PROMPT') or "Anda adalah asisten AI Benggala yang menganalisis objek visual dalam Bahasa Indonesia."
 
     # Susun prompt analisis berdasarkan objek yang dikirim
+    scan_mode = str(payload.get('scan_mode') or 'standard').strip().lower()
     user_prompt = payload.get('prompt') or ''
     if not user_prompt:
-        objects_data = payload.get('objects')
-        if isinstance(objects_data, list):
-            items_str = []
-            for obj in objects_data:
-                if isinstance(obj, dict):
-                    name = obj.get('name') or obj.get('name_id') or obj.get('class') or 'objek'
-                    size = f" [{obj['ukuran']}]" if obj.get('ukuran') else ''
-                    items_str.append(f"{name}{size}")
-                else:
-                    items_str.append(str(obj))
-            objects_summary = ', '.join(items_str)
-            user_prompt = f"Berikut adalah objek yang baru saja terdeteksi oleh kamera real-time: {objects_summary}.\nBerikan analisis visual yang jelas dan menarik dalam 2-3 paragraf informatif berbahasa Indonesia."
-        elif isinstance(objects_data, str) and objects_data.strip():
-            user_prompt = f"Berikut adalah objek yang terdeteksi: {objects_data}.\nBerikan analisis visual singkat dalam Bahasa Indonesia."
+        if scan_mode == 'reticle_crop':
+            user_prompt = (
+                "Fokus HANYA pada objek utama yang berada tepat di bagian tengah foto potongan ini. "
+                "Abaikan sepenuhnya latar belakang, alas, sofa, meja, lantai, dinding, atau permukaan tempat benda diletakkan. "
+                "Identifikasi nama spesifik objek depan tersebut (dalam Bahasa Indonesia), lalu isi kategori, kegunaan, "
+                "detail material/asal, dan catatan keamanannya dalam format analisis mendalam."
+            )
         else:
-            user_prompt = "Berikan analisis deteksi visual kamera saat ini dalam Bahasa Indonesia."
+            objects_data = payload.get('objects')
+            if isinstance(objects_data, list):
+                items_str = []
+                for obj in objects_data:
+                    if isinstance(obj, dict):
+                        name = obj.get('name') or obj.get('name_id') or obj.get('class') or 'objek'
+                        size = f" [{obj['ukuran']}]" if obj.get('ukuran') else ''
+                        items_str.append(f"{name}{size}")
+                    else:
+                        items_str.append(str(obj))
+                objects_summary = ', '.join(items_str)
+                user_prompt = f"Berikut adalah objek yang baru saja terdeteksi oleh kamera real-time: {objects_summary}.\nBerikan analisis visual yang jelas dan menarik dalam 2-3 paragraf informatif berbahasa Indonesia."
+            elif isinstance(objects_data, str) and objects_data.strip():
+                user_prompt = f"Berikut adalah objek yang terdeteksi: {objects_data}.\nBerikan analisis visual singkat dalam Bahasa Indonesia."
+            else:
+                user_prompt = "Berikan analisis deteksi visual kamera saat ini dalam Bahasa Indonesia."
 
     image_b64 = payload.get('image')
     custom_label = (payload.get('custom_label') or '').strip()
@@ -760,18 +775,30 @@ def analyze_ai():
 def quick_detail_ai():
     """
     Endpoint AI ultra-cepat untuk menghasilkan profil terstruktur kartu AR (JSON murni).
-    Didukung Gemini Vision (jika foto frame ada) dengan fallback otomatis ke DeepSeek.
+    Mendukung scan_mode='reticle_crop' (analisis netral objek depan) dan scan_mode='standard'.
+    Didukung Gemini Vision (jika foto frame/crop ada) dengan fallback otomatis ke DeepSeek.
     """
     payload = request.get_json(silent=True) or {}
+    scan_mode = str(payload.get('scan_mode') or 'standard').strip().lower()
     raw_label = str(payload.get('label') or '').strip()
-    if not raw_label:
-        return jsonify({
-            "status": "error",
-            "message": "Parameter 'label' wajib diisi."
-        }), 400
-
     clean_label = raw_label[:80].strip()
     image_b64 = payload.get('image')
+
+    # Validasi: Jika mode reticle_crop, image wajib ada (label dikosongkan agar tidak bias).
+    # Jika mode standard, minimal label atau image wajib diisi.
+    if scan_mode == 'reticle_crop':
+        if not image_b64:
+            return jsonify({
+                "status": "error",
+                "message": "Parameter 'image' wajib diisi untuk mode reticle_crop."
+            }), 400
+    else:
+        if not clean_label and not image_b64:
+            return jsonify({
+                "status": "error",
+                "message": "Parameter 'label' atau 'image' wajib diisi."
+            }), 400
+
     if image_b64:
         image_b64 = re.sub(r'^data:image/[^;]+;base64,', '', str(image_b64).strip(), flags=re.IGNORECASE).strip()
         missing_pad = len(image_b64) % 4
@@ -791,12 +818,23 @@ def quick_detail_ai():
     gemini_model = (settings.get('gemini_model') or os.getenv('GEMINI_MODEL') or 'gemini-2.5-flash').strip()
     deepseek_model = (settings.get('deepseek_model') or os.getenv('DEEPSEEK_MODEL') or 'deepseek-chat').strip()
 
+    # Susun instruksi fokus objek depan yang tegas & anti-bias jika reticle_crop atau label kosong
+    if scan_mode == 'reticle_crop' or not clean_label:
+        prompt_instruction = (
+            "Fokus HANYA pada objek utama yang berada tepat di bagian tengah foto potongan ini. "
+            "Abaikan sepenuhnya latar belakang, alas, sofa, meja, lantai, dinding, atau permukaan tempat benda diletakkan. "
+            "Identifikasi nama spesifik objek depan tersebut (dalam Bahasa Indonesia), lalu isi kategori, kegunaan, "
+            "detail material/asal, dan catatan keamanannya dalam format JSON baku."
+        )
+    else:
+        prompt_instruction = f"Analisis objek '{clean_label}' secara presisi dan ringkas."
+
     prompt_text = (
-        f"Analisis objek '{clean_label}' secara presisi dan ringkas.\n"
+        f"{prompt_instruction}\n"
         "Wajib kembalikan HANYA JSON murni (dilarang ada teks atau markdown lain di luar objek JSON) "
         "dengan struktur persis seperti ini:\n"
         "{\n"
-        '  "title": "Nama spesifik objek dalam Bahasa Indonesia (maks 4 kata)",\n'
+        '  "title": "Nama spesifik objek depan dalam Bahasa Indonesia (maks 4 kata)",\n'
         '  "category": "BARANG | HEWAN | TUMBUHAN | MAKANAN | ELEKTRONIK | KENDARAAN | UMUM",\n'
         '  "utility": "Kegunaan atau peran utamanya (maks 14 kata)",\n'
         '  "detail": "Asal, material, proses pembuatan, atau habitat khasnya (maks 16 kata)",\n'
@@ -808,6 +846,18 @@ def quick_detail_ai():
 
     system_prompt = "Anda adalah AI analitik Benggala OS yang selalu merespons HANYA dengan JSON valid bahasa Indonesia."
 
+    # Ambil referensi visual jika label diisi
+    custom_label = (payload.get('custom_label') or clean_label).strip()
+    mission_category = (payload.get('mission_category') or '').strip()
+    references = None
+    if custom_label or mission_category:
+        references = _get_reference_samples(
+            custom_label=custom_label,
+            objects_text=clean_label,
+            category=mission_category,
+            limit=3
+        )
+
     raw_response = ""
     provider_used = "gemini"
 
@@ -818,7 +868,7 @@ def quick_detail_ai():
             prompt=prompt_text,
             image_b64=image_b64,
             system_prompt=system_prompt,
-            references=None,
+            references=references,
             model=gemini_model
         )
         if success:
@@ -830,7 +880,7 @@ def quick_detail_ai():
                 api_key=deepseek_key,
                 system_prompt=system_prompt,
                 user_prompt=prompt_text,
-                references=None,
+                references=references,
                 model=deepseek_model
             )
             if success_ds:
@@ -843,7 +893,7 @@ def quick_detail_ai():
             api_key=deepseek_key,
             system_prompt=system_prompt,
             user_prompt=prompt_text,
-            references=None,
+            references=references,
             model=deepseek_model
         )
         if success_ds:
@@ -867,14 +917,15 @@ def quick_detail_ai():
     except Exception:
         parsed_data = None
 
+    default_title = clean_label.title() if clean_label else "Objek Terpindai"
     if not isinstance(parsed_data, dict):
         # Fallback aman jika model tidak mengembalikan struktur JSON sempurna
         parsed_data = {
-            "title": clean_label.title(),
+            "title": default_title,
             "category": "UMUM",
-            "utility": f"Objek visual teridentifikasi sebagai {clean_label}.",
+            "utility": f"Objek visual teridentifikasi sebagai {clean_label}." if clean_label else "Objek visual teridentifikasi dari titik bidik.",
             "detail": raw_response[:90].strip() if raw_response else "Hasil identifikasi visual real-time.",
-            "extra_tip": "Analisis live real-time Benggala OS.",
+            "extra_tip": "Analisis titik bidik real-time Benggala OS.",
             "safety": "aman",
             "safetyNote": "Amati objek dengan saksama."
         }
@@ -888,14 +939,15 @@ def quick_detail_ai():
     safety_clean = safety_raw if safety_raw in ('aman', 'waspada', 'bahaya') else 'aman'
 
     data_out = {
-        "title": str(parsed_data.get("title") or clean_label.title())[:40],
+        "title": str(parsed_data.get("title") or default_title)[:40],
         "category": category_clean,
-        "utility": str(parsed_data.get("utility") or f"Objek teridentifikasi {clean_label}.")[:150],
+        "utility": str(parsed_data.get("utility") or (f"Objek teridentifikasi {clean_label}." if clean_label else "Objek depan teridentifikasi."))[:150],
         "detail": str(parsed_data.get("detail") or "Data visual diproses AI.")[:180],
         "extra_tip": str(parsed_data.get("extra_tip") or "")[:150],
         "safety": safety_clean,
         "safetyNote": str(parsed_data.get("safetyNote") or "Amati secara saksama.")[:60],
-        "source": "AI LIVE"
+        "source": "AI LIVE",
+        "scan_mode": scan_mode
     }
 
     return jsonify({
