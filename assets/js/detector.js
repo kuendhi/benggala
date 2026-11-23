@@ -400,8 +400,142 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
-  // 2. Kontrol Kamera (getUserMedia & facingMode)
+  // 2. Kontrol Kamera, Deteksi Multi-Kamera Belakang & facingMode
   // =========================================================================
+  let detectedCameras = [];
+  let selectedCameraDeviceId = localStorage.getItem('benggala_selected_camera_id') || '';
+
+  /**
+   * Mengelompokkan dan memberi nama ramah untuk kamera belakang (Ultra-Wide, Wide, Telephoto, Macro) dan depan
+   */
+  function categorizeCamera(device, index, total) {
+    const rawLabel = (device.label || '').trim();
+    const labelLower = rawLabel.toLowerCase();
+    let type = 'back';
+    let friendlyName = rawLabel || `Kamera ${index + 1}`;
+
+    const isFront = labelLower.includes('front') || labelLower.includes('user') || labelLower.includes('depan') || labelLower.includes('selfie') || labelLower.includes('facing front');
+    const isUltraWide = labelLower.includes('ultra') || labelLower.includes('0.5') || labelLower.includes('0.6');
+    const isTele = labelLower.includes('tele') || labelLower.includes('zoom') || labelLower.includes('2x') || labelLower.includes('3x') || labelLower.includes('5x') || labelLower.includes('10x');
+    const isMacro = labelLower.includes('macro');
+    const isWide = (labelLower.includes('wide') || labelLower.includes('main')) && !isUltraWide;
+
+    if (isFront) {
+      type = 'front';
+      friendlyName = `🤳 Kamera Depan ${rawLabel ? `(${rawLabel})` : ''}`;
+    } else {
+      type = 'back';
+      if (isUltraWide) {
+        friendlyName = `📐 Kamera Belakang Ultra-Wide (0.5x) ${rawLabel ? `[${rawLabel}]` : ''}`;
+      } else if (isTele) {
+        friendlyName = `🔭 Kamera Belakang Telephoto / Zoom ${rawLabel ? `[${rawLabel}]` : ''}`;
+      } else if (isMacro) {
+        friendlyName = `🔍 Kamera Belakang Macro ${rawLabel ? `[${rawLabel}]` : ''}`;
+      } else if (isWide) {
+        friendlyName = `📷 Kamera Belakang Utama (1x Wide) ${rawLabel ? `[${rawLabel}]` : ''}`;
+      } else {
+        if (labelLower.includes('0') || index === 0) {
+          friendlyName = `📷 Kamera Belakang Utama ${rawLabel ? `(${rawLabel})` : `#${index + 1}`}`;
+        } else {
+          friendlyName = `📷 Kamera Belakang #${index + 1} ${rawLabel ? `(${rawLabel})` : ''}`;
+        }
+      }
+    }
+
+    return {
+      deviceId: device.deviceId,
+      type,
+      isBack: type === 'back',
+      label: rawLabel,
+      friendlyName
+    };
+  }
+
+  /**
+   * Mendeteksi seluruh kamera perangkat dan memperbarui opsi dropdown pilihan kamera
+   */
+  async function refreshCameraDevices() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+      return;
+    }
+
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(d => d.kind === 'videoinput');
+
+      detectedCameras = videoDevices.map((dev, idx) => categorizeCamera(dev, idx, videoDevices.length));
+
+      const cameraDeviceSelect = document.getElementById('cameraDeviceSelect');
+      const cameraCountBadge = document.getElementById('cameraCountBadge');
+
+      if (cameraCountBadge) {
+        const backCount = detectedCameras.filter(c => c.isBack).length;
+        const frontCount = detectedCameras.filter(c => !c.isBack).length;
+        if (detectedCameras.length > 0) {
+          cameraCountBadge.textContent = `${detectedCameras.length} Kamera (${backCount} Belakang, ${frontCount} Depan)`;
+        } else {
+          cameraCountBadge.textContent = 'Standar';
+        }
+      }
+
+      if (cameraDeviceSelect) {
+        cameraDeviceSelect.innerHTML = '';
+
+        // Opsi Otomatis (Default Belakang)
+        const optDefault = document.createElement('option');
+        optDefault.value = '';
+        optDefault.textContent = '⚡ Otomatis (Default Belakang)';
+        if (!selectedCameraDeviceId) optDefault.selected = true;
+        cameraDeviceSelect.appendChild(optDefault);
+
+        // Kelompok Kamera Belakang (Multi-Lensa Modern)
+        const backCameras = detectedCameras.filter(c => c.isBack);
+        if (backCameras.length > 0) {
+          const groupBack = document.createElement('optgroup');
+          groupBack.label = '📷 Kamera Belakang (Pilih Lensa Spesifik)';
+          backCameras.forEach(cam => {
+            const opt = document.createElement('option');
+            opt.value = cam.deviceId;
+            opt.textContent = cam.friendlyName;
+            if (cam.deviceId === selectedCameraDeviceId) {
+              opt.selected = true;
+            }
+            groupBack.appendChild(opt);
+          });
+          cameraDeviceSelect.appendChild(groupBack);
+        }
+
+        // Kelompok Kamera Depan
+        const frontCameras = detectedCameras.filter(c => !c.isBack);
+        if (frontCameras.length > 0) {
+          const groupFront = document.createElement('optgroup');
+          groupFront.label = '🤳 Kamera Depan (Selfie)';
+          frontCameras.forEach(cam => {
+            const opt = document.createElement('option');
+            opt.value = cam.deviceId;
+            opt.textContent = cam.friendlyName;
+            if (cam.deviceId === selectedCameraDeviceId) {
+              opt.selected = true;
+            }
+            groupFront.appendChild(opt);
+          });
+          cameraDeviceSelect.appendChild(groupFront);
+        }
+
+        // Jika belum ada nama label (izin belum diberikan), tampilkan hint
+        if (detectedCameras.length > 0 && !detectedCameras[0].label) {
+          const optHint = document.createElement('option');
+          optHint.value = '';
+          optHint.disabled = true;
+          optHint.textContent = 'ℹ️ Mulai kamera 1x untuk membuka nama lengkap lensa';
+          cameraDeviceSelect.appendChild(optHint);
+        }
+      }
+    } catch (err) {
+      console.warn('Gagal mengenumerasi perangkat kamera:', err);
+    }
+  }
+
   async function startCamera() {
     hideCameraError();
 
@@ -433,7 +567,10 @@ document.addEventListener('DOMContentLoaded', () => {
       height: { ideal: targetIdealH, max: 2160 },
       aspectRatio: { ideal: targetAspect }
     };
-    if (isMobileDevice) {
+
+    if (selectedCameraDeviceId) {
+      primaryVideoConstraints.deviceId = { exact: selectedCameraDeviceId };
+    } else if (isMobileDevice) {
       primaryVideoConstraints.facingMode = { ideal: currentFacingMode };
     }
 
@@ -444,14 +581,16 @@ document.addEventListener('DOMContentLoaded', () => {
           video: primaryVideoConstraints
         });
       } catch (errConstraint) {
-        console.warn('Resolusi 1080p tidak dapat dipenuhi secara kaku, mencoba fallback resolusi fleksibel:', errConstraint);
+        console.warn('Resolusi 1080p / kamera spesifik tidak dapat dipenuhi kaku, mencoba fallback resolusi fleksibel:', errConstraint);
         try {
           const fallbackConstraints = {
             width: { ideal: (cameraOrientation === 'portrait' ? 720 : 1280), min: 480 },
             height: { ideal: (cameraOrientation === 'portrait' ? 1280 : 720), min: 480 },
             aspectRatio: { ideal: targetAspect }
           };
-          if (isMobileDevice) {
+          if (selectedCameraDeviceId) {
+            fallbackConstraints.deviceId = { ideal: selectedCameraDeviceId };
+          } else if (isMobileDevice) {
             fallbackConstraints.facingMode = { ideal: currentFacingMode };
           }
           stream = await navigator.mediaDevices.getUserMedia({
@@ -522,6 +661,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Mulai loop deteksi real-time
       startDetectionLoop();
+
+      // Perbarui daftar multi-kamera sekarang karena izin mediaDevices telah terbuka
+      await refreshCameraDevices();
 
       const resBadge = (video.videoWidth >= 1920) ? 'FHD 1080p' : (video.videoWidth >= 1280 ? 'HD 720p' : `${video.videoWidth}×${video.videoHeight}`);
       showToast(`✨ Monitor Utama Cerah & Resolusi Tinggi: ${video.videoWidth}×${video.videoHeight} (${resBadge})`, 'success');
@@ -622,9 +764,41 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function switchCamera() {
-    currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
-    if (isStreaming) {
-      await startCamera();
+    if (detectedCameras.length > 1) {
+      // Jika terdeteksi multi-kamera (misal smartphone dengan banyak lensa belakang), lakukan cycling ke kamera berikutnya
+      let currentIndex = -1;
+      if (selectedCameraDeviceId) {
+        currentIndex = detectedCameras.findIndex(c => c.deviceId === selectedCameraDeviceId);
+      } else {
+        currentIndex = detectedCameras.findIndex(c => (currentFacingMode === 'user' ? !c.isBack : c.isBack));
+      }
+
+      const nextIndex = (currentIndex + 1) % detectedCameras.length;
+      const nextCam = detectedCameras[nextIndex];
+      selectedCameraDeviceId = nextCam.deviceId;
+      localStorage.setItem('benggala_selected_camera_id', selectedCameraDeviceId);
+      currentFacingMode = nextCam.isBack ? 'environment' : 'user';
+
+      const cameraDeviceSelect = document.getElementById('cameraDeviceSelect');
+      if (cameraDeviceSelect) {
+        cameraDeviceSelect.value = selectedCameraDeviceId;
+      }
+
+      showToast(`🔄 Beralih ke: ${nextCam.friendlyName}`, 'info');
+      if (isStreaming) {
+        await startCamera();
+      }
+    } else {
+      currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
+      selectedCameraDeviceId = '';
+      localStorage.removeItem('benggala_selected_camera_id');
+      const cameraDeviceSelect = document.getElementById('cameraDeviceSelect');
+      if (cameraDeviceSelect) {
+        cameraDeviceSelect.value = '';
+      }
+      if (isStreaming) {
+        await startCamera();
+      }
     }
   }
 
@@ -1925,6 +2099,79 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // =========================================================================
+  // Pemilihan Perangkat Kamera Spesifik (Multi-Kamera Belakang & Depan)
+  // =========================================================================
+  const cameraDeviceSelect = document.getElementById('cameraDeviceSelect');
+  if (cameraDeviceSelect) {
+    cameraDeviceSelect.addEventListener('change', async (e) => {
+      const devId = e.target.value;
+      selectedCameraDeviceId = devId;
+      if (devId) {
+        localStorage.setItem('benggala_selected_camera_id', devId);
+        const camObj = detectedCameras.find(c => c.deviceId === devId);
+        showToast(`📷 Memilih ${camObj ? camObj.friendlyName : 'Kamera'}...`, 'info');
+      } else {
+        localStorage.removeItem('benggala_selected_camera_id');
+        showToast('📷 Kamera diatur ke Otomatis (Default Belakang)', 'info');
+      }
+
+      if (isStreaming) {
+        await startCamera();
+      }
+    });
+  }
+
+  if (navigator.mediaDevices && typeof navigator.mediaDevices.addEventListener === 'function') {
+    navigator.mediaDevices.addEventListener('devicechange', refreshCameraDevices);
+  }
+
+  // =========================================================================
+  // Triple-Click / Triple-Tap untuk Mulai Kamera Cepat di Landing Page
+  // =========================================================================
+  let landingTapCount = 0;
+  let landingTapTimer = null;
+  const TRIPLE_CLICK_INTERVAL = 850; // ms
+
+  function handleLandingTripleTap() {
+    landingTapCount++;
+    const badge = document.getElementById('placeholderTripleClickBadge');
+
+    if (badge) {
+      badge.classList.add('active-pulse');
+      setTimeout(() => badge.classList.remove('active-pulse'), 180);
+    }
+
+    if (landingTapTimer) {
+      clearTimeout(landingTapTimer);
+    }
+
+    if (landingTapCount === 1) {
+      if (badge) badge.innerHTML = '<span class="badge-icon">⚡</span> Klik 3x untuk Mulai Cepat (1/3)';
+    } else if (landingTapCount === 2) {
+      if (badge) badge.innerHTML = '<span class="badge-icon">⚡</span> Klik 3x untuk Mulai Cepat (2/3)';
+    } else if (landingTapCount >= 3) {
+      landingTapCount = 0;
+      if (badge) badge.innerHTML = '<span class="badge-icon">🚀</span> Mengaktifkan Sensor... (3/3)';
+      showToast('🚀 Mengaktifkan sensor kamera via Klik 3x...', 'success');
+      startCamera();
+      return;
+    }
+
+    landingTapTimer = setTimeout(() => {
+      landingTapCount = 0;
+      if (badge) badge.innerHTML = '<span class="badge-icon">⚡</span> Klik 3x Layar untuk Mulai Cepat';
+    }, TRIPLE_CLICK_INTERVAL);
+  }
+
+  const placeholderTripleClickBadge = document.getElementById('placeholderTripleClickBadge');
+  if (placeholderTripleClickBadge) {
+    placeholderTripleClickBadge.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handleLandingTripleTap();
+    });
+  }
+
   // Dukungan Mouse Wheel Zoom (PC) pada area Viewport
   const viewportEl = document.querySelector('.cockpit-viewport');
   if (viewportEl) {
@@ -1959,7 +2206,9 @@ document.addEventListener('DOMContentLoaded', () => {
         e.target.closest('select') ||
         e.target.closest('.cockpit-modal') ||
         e.target.closest('.hud-telemetry') ||
-        e.target.closest('.hud-radar')
+        e.target.closest('.hud-radar') ||
+        e.target.closest('.dossier-overlay') ||
+        e.target.closest('.roadmap-overlay')
       ) {
         return;
       }
@@ -1969,8 +2218,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // 3. Hanya aktif jika kamera sedang berjalan
+      // 3. Jika kamera belum aktif (!isStreaming), pantau triple-click untuk mulai kamera di landing page
       if (!isStreaming) {
+        handleLandingTripleTap();
         return;
       }
 
@@ -2592,4 +2842,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Muat model saat halaman pertama kali dibuka
   loadModel();
+
+  // Inisialisasi deteksi multi-kamera perangkat
+  refreshCameraDevices();
 });

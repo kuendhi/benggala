@@ -445,6 +445,46 @@ html, body {
   color: var(--cyan);
 }
 
+.placeholder-triple-click-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 1.25rem;
+  padding: 8px 18px;
+  background: rgba(0, 229, 255, 0.12);
+  border: 1.5px solid rgba(0, 229, 255, 0.45);
+  border-radius: 999px;
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.2);
+  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  user-select: none;
+}
+
+.placeholder-triple-click-badge:hover,
+.placeholder-triple-click-badge.active-pulse {
+  background: rgba(0, 229, 255, 0.28);
+  border-color: var(--cyan);
+  box-shadow: 0 0 25px rgba(0, 229, 255, 0.6);
+  transform: scale(1.06);
+}
+
+#cameraDeviceSelect optgroup {
+  background: #0a1628;
+  color: var(--cyan);
+  font-weight: 700;
+}
+
+#cameraDeviceSelect option {
+  background: #020617;
+  color: #fff;
+  padding: 6px;
+}
+
 /* Camera Error Banner */
 .camera-error {
   position: absolute;
