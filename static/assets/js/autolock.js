@@ -16,7 +16,7 @@
     acquireMs: 1500,     // 1.5s Fase Akuisisi Radar (Membidik target)
     lockMs: 4500,        // 4.5s Fase Mengunci Aktif (Total 1.5s + 4.5s = 6.0 DETIK)
     totalLockMs: 6000,   // 6.0 DETIK kuncian stabil mutlak
-    cooldownMs: 8000,    // 8s jeda cooldown setelah terkunci & selesai
+    cooldownMs: 1500,    // 1.5s jeda cooldown objek sama (objek baru langsung dibidik)
     maxMovePx: 50,       // Toleransi pergeseran objek (px)
     lerpFactor: 0.22,    // Faktor kehalusan lerp reticle
 
@@ -26,6 +26,7 @@
     lockedTarget: null,
     lockStartTime: 0,
     lastLockedTime: 0,
+    lastLockedClass: '',
     lastMidPoint: { x: 0, y: 0 },
     hasTriggered: false,
 
@@ -186,12 +187,6 @@
         return;
       }
 
-      // Cek Masa Cooldown (hanya jika baru saja mengeksekusi pipeline dan target lama sudah lepas)
-      if (this.lastLockedTime > 0 && now - this.lastLockedTime < this.cooldownMs && this.state !== 'LOCKED') {
-        this.state = 'COOLDOWN';
-        return;
-      }
-
       // 1. Pilih 1 Objek Utama: Dekat dengan Crosshair Tengah & Akurasi Tertinggi
       const centerX = canvasWidth / 2;
       const centerY = canvasHeight / 2;
@@ -216,13 +211,24 @@
         });
       }
 
-      // Jika tidak ada objek yang valid
+      // Jika tidak ada objek yang valid di viewport
       if (!primary) {
         this.state = 'IDLE';
         this.trackingTarget = null;
         this.lockedTarget = null;
         this.hasTriggered = false;
+        if (window.BenggalaArCallout && typeof window.BenggalaArCallout.hide === 'function') {
+          window.BenggalaArCallout.hide();
+        }
         return;
+      }
+
+      // Cek Masa Cooldown (1.5 detik) khusus jika objek yang sama persis baru saja selesai dikunci
+      if (this.lastLockedTime > 0 && (now - this.lastLockedTime < this.cooldownMs) && this.state !== 'LOCKED') {
+        if (this.lastLockedClass && primary.class === this.lastLockedClass) {
+          this.state = 'COOLDOWN';
+          return;
+        }
       }
 
       const [px, py, pw, ph] = primary.bbox;
@@ -313,6 +319,7 @@
         if (!this.hasTriggered) {
           this.hasTriggered = true;
           this.lastLockedTime = now;
+          this.lastLockedClass = primary.class;
           this.playLockConfirmed();
 
           if (typeof onLockedCallback === 'function') {

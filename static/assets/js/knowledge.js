@@ -180,14 +180,14 @@
   }
 
   // =========================================================================
-  // 5. Ekstraksi Area Objek (Offscreen Canvas 224x224)
+  // 5. Ekstraksi Area Objek (Reusable Offscreen Canvas 224x224 Anti-Leak)
   // =========================================================================
-  function getCropCanvas(videoEl, bbox) {
-    const offCanvas = document.createElement('canvas');
-    offCanvas.width = 224;
-    offCanvas.height = 224;
-    const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+  const cachedCropCanvas = document.createElement('canvas');
+  cachedCropCanvas.width = 224;
+  cachedCropCanvas.height = 224;
+  const cachedCropCtx = cachedCropCanvas.getContext('2d', { willReadFrequently: true });
 
+  function getCropCanvas(videoEl, bbox) {
     const vw = videoEl.videoWidth || 640;
     const vh = videoEl.videoHeight || 480;
 
@@ -205,8 +205,8 @@
       sy = Math.round((vh - sh) / 2);
     }
 
-    offCtx.drawImage(videoEl, sx, sy, sw, sh, 0, 0, 224, 224);
-    return offCanvas;
+    cachedCropCtx.drawImage(videoEl, sx, sy, sw, sh, 0, 0, 224, 224);
+    return cachedCropCanvas;
   }
 
   // =========================================================================
@@ -232,8 +232,8 @@
       const winningLabel = result.label;
       const knnConfidence = (result.confidences && result.confidences[winningLabel]) || 0;
 
-      // Ambil nilai array numerik untuk validasi Cosine Similarity
-      const currentVec = Array.from(embeddingTensor.dataSync());
+      // Ambil nilai data tensor secara asynchronous tanpa memblokir thread WebGL GPU
+      const currentVec = await embeddingTensor.data();
 
       // Hitung Cosine Similarity terhadap seluruh sampel kelas pemenang di memori
       let maxSim = 0;

@@ -763,6 +763,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.BenggalaArCallout && typeof window.BenggalaArCallout.hide === 'function') {
       window.BenggalaArCallout.hide();
     }
+    if (window.BenggalaAutoLock && typeof window.BenggalaAutoLock.reset === 'function') {
+      window.BenggalaAutoLock.reset();
+    }
 
     const cameraStage = document.getElementById('cameraStage');
     if (cameraStage) {
@@ -1036,6 +1039,28 @@ document.addEventListener('DOMContentLoaded', () => {
   let activePredictionsForRender = [];
   let inferenceCycleActive = false;
   let aiLoopId = 0;
+  let lastInferenceSuccessTime = performance.now();
+  let consecutiveInferenceErrors = 0;
+
+  /**
+   * Pembungkus inferensi COCO-SSD berpelindung timeout (Watchdog)
+   * Mencegah thread inferensi atau WebGL macet/hang permanen saat kamera digerakkan
+   */
+  function detectWithTimeout(canvasEl, maxBoxes, minScore, timeoutMs = 1200) {
+    let timerId = null;
+    const timeoutPromise = new Promise((_, reject) => {
+      timerId = setTimeout(() => {
+        reject(new Error('Inference timeout exceeded'));
+      }, timeoutMs);
+    });
+
+    return Promise.race([
+      model.detect(canvasEl, maxBoxes, minScore),
+      timeoutPromise
+    ]).finally(() => {
+      if (timerId) clearTimeout(timerId);
+    });
+  }
 
   /**
    * Menghitung IoU dan rasio tumpang-tindih (Containment Ratio)
@@ -1142,18 +1167,20 @@ document.addEventListener('DOMContentLoaded', () => {
       cropY = (vh - cropH) / 2;
     }
 
-    // Resolusi tinggi ideal tensor COCO-SSD (480px pada mobile, 640px pada desktop) untuk menangkap detail objek halus
+    // Downscale proporsional ke resolusi ideal tensor COCO-SSD
+    // Mobile: 360px (sedikit di atas tensor input 300x300, sangat ringan di GPU WebGL)
+    // Desktop: 448px (detail tajam)
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (window.innerWidth <= 768) || (navigator.maxTouchPoints > 0);
-    const MAX_SCAN_DIM = isMobileDevice ? 480 : 640;
+    const MAX_SCAN_DIM = isMobileDevice ? 360 : 448;
     const aspect = cropW / cropH;
     let scanW, scanH;
 
     if (aspect >= 1) {
       scanW = MAX_SCAN_DIM;
-      scanH = Math.max(240, Math.round(MAX_SCAN_DIM / aspect));
+      scanH = Math.max(180, Math.round(MAX_SCAN_DIM / aspect));
     } else {
       scanH = MAX_SCAN_DIM;
-      scanW = Math.max(240, Math.round(MAX_SCAN_DIM * aspect));
+      scanW = Math.max(180, Math.round(MAX_SCAN_DIM * aspect));
     }
 
     if (aiScanCanvas.width !== scanW || aiScanCanvas.height !== scanH) {
@@ -1164,8 +1191,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // Hardware 2D Blit: salin viewport kamera ke aiScanCanvas dalam < 0.5 ms
     aiScanCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, scanW, scanH);
 
-    // Jalankan inferensi COCO-SSD pada resolusi detail tinggi (maks 30 objek)
-    const rawDetections = await model.detect(aiScanCanvas, 30, detectMinScore);
+    // Jalankan inferensi COCO-SSD berpelindung timeout (maks 20 objek)
+    let rawDetections = [];
+    try {
+      rawDetections = await detectWithTimeout(aiScanCanvas, 20, detectMinScore, 1200);
+      lastInferenceSuccessTime = performance.now();
+      consecutiveInferenceErrors = 0;
+    } catch (err) {
+      consecutiveInferenceErrors++;
+      console.warn(`[AI Loop] Inference timeout/error #${consecutiveInferenceErrors}:`, err.message || err);
+      if (consecutiveInferenceErrors >= 2) {
+        // Bersihkan bounding box basi jika inferensi macet 2x berturut-turut
+        activePredictionsForRender = [];
+        currentPredictions = [];
+        lastPredictions = [];
+      }
+      return;
+    }
 
     // Skala kembali koordinat bbox ke sistem koordinat video resolusi penuh
     const scaleX = cropW / scanW;
@@ -1309,12 +1351,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const predictionsSource = activePredictionsForRender || [];
       let displayPredictions = predictionsSource;
-      let autoLockPredictions = [];
 
-      // Evaluasi Filter Fokus & Auto-Lock Target (HANYA AKTIF JIKA OBJEK DI-KLIK 2X)
+      // Watchdog pembersih kotak macet saat kamera digerakkan:
+      // Jika kamera digerakkan ke area kosong atau inferensi belum update > 650ms,
+      // hilangkan render box agar tidak ada kotak hang di layar
+      if (now - lastInferenceSuccessTime > 650 && displayPredictions.length > 0) {
+        displayPredictions = [];
+        activePredictionsForRender = [];
+      }
+
+      // Evaluasi Filter Fokus & Auto-Lock Target (Klik 2x / Sentuh)
+      let focusedObject = null;
       if (focusState.active && focusState.targetClass) {
-        let focusedObject = null;
-
         if (predictionsSource.length > 0) {
           let bestScore = Infinity;
 
@@ -1355,16 +1403,20 @@ document.addEventListener('DOMContentLoaded', () => {
           updateFocusReticlePosition(screenCoords.x, screenCoords.y);
 
           displayPredictions = [focusedObject];
-          autoLockPredictions = [focusedObject];
         } else {
           if (focusState.canvasX !== null && focusState.canvasY !== null) {
             const screenCoords = canvasToClientCoords(focusState.canvasX, focusState.canvasY);
             updateFocusReticlePosition(screenCoords.x, screenCoords.y);
           }
           displayPredictions = [];
-          autoLockPredictions = [];
         }
       }
+
+      // Prediksi yang diteruskan ke sistem Rudal Udara (Air-to-Air Missile Radar)
+      // Kamera berfungsi mandiri sebagai radar pencari objek terdekat di viewport
+      const autoLockPredictions = (focusState.active && focusState.targetClass)
+        ? (focusedObject ? [focusedObject] : [])
+        : displayPredictions;
 
       // Simpan referensi objek aktif utama untuk modul training (Task 16B)
       latestActivePrediction = (displayPredictions && displayPredictions.length > 0) ? displayPredictions[0] : null;
@@ -1385,7 +1437,9 @@ document.addEventListener('DOMContentLoaded', () => {
           autoLockPredictions,
           now,
           (lockedTarget) => {
-            handleAutoLockPipeline(lockedTarget);
+            // Target berhasil terkunci stabil 6.0s: Berikan feedback visual taktis ringan
+            const objName = typeof window.translateLabel === 'function' ? window.translateLabel(lockedTarget.class) : lockedTarget.class;
+            showToast(`⚡ Target [${objName}] terkunci stabil (6.0s)`, 'success');
           },
           canvas.width,
           canvas.height

@@ -3718,14 +3718,19 @@ body.mode-emergency .mission-status-badge {
   }
 }
 
-/* Aturan Mutlak Panggung Kamera Mobile (Task 19) */
-@media (max-width: 767px) {
+/* Aturan Mutlak Panggung Kamera Mobile & Touch */
+@media (max-width: 900px), (pointer: coarse), (hover: none) {
   .camera-stage,
   .camera-stage.is-portrait,
   .camera-stage.is-widescreen {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
     border: none !important;
     box-shadow: none !important;
   }
 }
+
 
 
