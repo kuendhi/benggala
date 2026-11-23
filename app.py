@@ -4,6 +4,7 @@ from flask import Flask, render_template, session, send_from_directory, make_res
 from dotenv import load_dotenv
 from core.database import db_fetch_one
 from routes.settings_history import settings_history_bp
+from routes.ai_snapshot import ai_snapshot_bp
 
 # Muat variabel environment dari file .env jika tersedia
 load_dotenv()
@@ -22,6 +23,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 # Daftarkan Blueprint API
 app.register_blueprint(settings_history_bp)
+app.register_blueprint(ai_snapshot_bp)
 
 @app.route('/')
 def index():
