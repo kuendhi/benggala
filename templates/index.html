@@ -7,6 +7,8 @@
   <script>
     window.BASE_PATH = "{{ base_path }}";
     window.CSRF_TOKEN = "{{ csrf_token }}";
+    window.ANDROID_EMBED = {{ 'true' if is_embed else 'false' }};
+    window.INITIAL_PANEL = "{{ initial_panel or '' }}";
 
     window.resolveUrl = function(path) {
       if (!path || typeof path !== 'string') return path;
@@ -26,6 +28,19 @@
       if (typeof input === 'string') {
         if (input.startsWith('/api/') || input.startsWith('/uploads/') || input.startsWith('uploads/')) {
           input = window.resolveUrl(input);
+        }
+      }
+      // Auto-inject X-App-Token jika di Android WebView dan token tersedia
+      const appToken = window.ANDROID_APP_TOKEN || (window.BenggalaAndroid && window.BenggalaAndroid.getAppToken ? window.BenggalaAndroid.getAppToken() : '');
+      if (appToken && typeof input === 'string' && input.includes('/api/')) {
+        init = init || {};
+        init.headers = init.headers || {};
+        if (init.headers instanceof Headers) {
+          if (!init.headers.has('X-App-Token')) init.headers.set('X-App-Token', appToken);
+        } else if (Array.isArray(init.headers)) {
+          init.headers.push(['X-App-Token', appToken]);
+        } else {
+          init.headers['X-App-Token'] = appToken;
         }
       }
       return _nativeFetch(input, init);
@@ -49,7 +64,7 @@
   <!-- YOULO OS Cockpit Styles (Anti-Cache) -->
   <link rel="stylesheet" href="{{ asset_url('assets/css/style.css') }}">
 </head>
-<body class="youlo-os">
+<body class="youlo-os{% if is_embed %} android-embed-mode{% endif %}">
   <div class="cockpit-shell">
     
     <!-- 1. Header HUD (.hud-header) -->
@@ -812,5 +827,55 @@
 
   <!-- Detector Script (Anti-Cache) -->
   <script src="{{ asset_url('assets/js/detector.js') }}"></script>
+
+  <!-- Inisialisasi Android Embed Mode (Task AND_01) -->
+  <script>
+    (function() {
+      if (!window.ANDROID_EMBED) return;
+
+      function openEmbedPanel() {
+        const rawPanel = (window.INITIAL_PANEL || '').toLowerCase().trim();
+        if (!rawPanel) return;
+
+        const panelMap = {
+          'gallery': 'galeri',
+          'galeri': 'galeri',
+          'settings': 'sistem',
+          'setting': 'sistem',
+          'sistem': 'sistem',
+          'knowledge': 'knowledge',
+          'knn': 'knowledge',
+          'latih': 'knowledge',
+          'ai': 'ai',
+          'cctv': 'cctv',
+          'sensor': 'sensor',
+          'camera': 'sensor',
+          'kalibrasi': 'kalibrasi'
+        };
+
+        if (rawPanel === 'vision' || rawPanel === 'roadmap' || rawPanel === 'visi') {
+          const btnRoadmap = document.getElementById('btnRoadmap');
+          if (btnRoadmap) btnRoadmap.click();
+          return;
+        }
+
+        const targetPanelId = panelMap[rawPanel] || rawPanel;
+        if (window.BenggalaCockpit && typeof window.BenggalaCockpit.openPanel === 'function') {
+          window.BenggalaCockpit.openPanel(targetPanelId);
+        } else {
+          const dockBtn = document.querySelector('.cockpit-dock .dock-btn[data-target="' + targetPanelId + '"]');
+          if (dockBtn) dockBtn.click();
+        }
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+          setTimeout(openEmbedPanel, 150);
+        });
+      } else {
+        setTimeout(openEmbedPanel, 150);
+      }
+    })();
+  </script>
 </body>
 </html>

@@ -126,11 +126,10 @@ def check_rate_limit(client_ip: str, max_requests: int, window_seconds: int) -> 
 
 def require_api_security(max_requests=30, window_seconds=60):
     """
-    Decorator Flask untuk proteksi endpoint API:
-    1. Validasi Same-Origin (Origin / Referer)
-    2. Validasi X-CSRF-Token via hmac.compare_digest
-    3. Rate Limiting per IP
-    Dapat digunakan sebagai @require_api_security atau @require_api_security(max_requests=X, window_seconds=Y).
+    Decorator Flask untuk proteksi endpoint API (Dual-Auth Mode):
+    Jalur 1 - Native Android: Header X-App-Token divalidasi dengan APP_API_TOKEN (Bypass Same-Origin & CSRF cookie).
+    Jalur 2 - Browser Web: Validasi Same-Origin (Origin/Referer) + Cookie/Header X-CSRF-Token.
+    Semua jalur tetap dikenakan Rate Limiting per IP.
     """
     if callable(max_requests):
         func = max_requests
@@ -152,31 +151,56 @@ def require_api_security(max_requests=30, window_seconds=60):
     return decorator
 
 def _execute_security_check(f, max_requests, window_seconds, *args, **kwargs):
-    # 1. Validasi Same-Origin
-    if not is_same_origin():
-        return jsonify({
-            "status": "error",
-            "error_stage": "security",
-            "reason": "origin_mismatch",
-            "message": "Origin not allowed"
-        }), 403
+    # =========================================================================
+    # Jalur 1 — Klien Native Android (Header X-App-Token)
+    # =========================================================================
+    app_token_header = (
+        request.headers.get('X-App-Token') or
+        request.headers.get('x-app-token') or
+        ''
+    ).strip()
 
-    # 2. Validasi CSRF Token
-    csrf_ok, csrf_reason = check_csrf_status()
-    if not csrf_ok:
-        csrf_messages = {
-            'csrf_session_missing': 'Sesi CSRF tidak ditemukan atau telah kedaluwarsa.',
-            'csrf_header_missing': 'Header X-CSRF-Token tidak ditemukan.',
-            'csrf_mismatch': 'Token CSRF tidak valid.'
-        }
-        return jsonify({
-            "status": "error",
-            "error_stage": "security",
-            "reason": csrf_reason,
-            "message": csrf_messages.get(csrf_reason, "Invalid CSRF Token")
-        }), 403
+    if app_token_header:
+        expected_token = (os.getenv('APP_API_TOKEN') or '').strip()
+        if not expected_token or not hmac.compare_digest(app_token_header, expected_token):
+            return jsonify({
+                "status": "error",
+                "error_stage": "security",
+                "reason": "invalid_app_token",
+                "message": "Token aplikasi Android tidak valid."
+            }), 401
+        # Token valid: lewati validasi Same-Origin & CSRF cookie, lanjut ke Rate Limiting
+    else:
+        # =========================================================================
+        # Jalur 2 — Klien Browser Web (Tanpa X-App-Token)
+        # =========================================================================
+        # 1. Validasi Same-Origin
+        if not is_same_origin():
+            return jsonify({
+                "status": "error",
+                "error_stage": "security",
+                "reason": "origin_mismatch",
+                "message": "Origin not allowed"
+            }), 403
 
-    # 3. Rate Limiting per IP
+        # 2. Validasi CSRF Token
+        csrf_ok, csrf_reason = check_csrf_status()
+        if not csrf_ok:
+            csrf_messages = {
+                'csrf_session_missing': 'Sesi CSRF tidak ditemukan atau telah kedaluwarsa.',
+                'csrf_header_missing': 'Header X-CSRF-Token tidak ditemukan.',
+                'csrf_mismatch': 'Token CSRF tidak valid.'
+            }
+            return jsonify({
+                "status": "error",
+                "error_stage": "security",
+                "reason": csrf_reason,
+                "message": csrf_messages.get(csrf_reason, "Invalid CSRF Token")
+            }), 403
+
+    # =========================================================================
+    # Rate Limiting per IP (Berlaku Universal untuk Android & Web)
+    # =========================================================================
     ip = get_client_ip()
     if not check_rate_limit(ip, max_requests, window_seconds):
         return jsonify({

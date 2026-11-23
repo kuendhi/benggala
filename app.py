@@ -59,11 +59,19 @@ def inject_helpers():
 
 @app.route('/')
 def index():
-    """Halaman antarmuka utama Benggala OS Cockpit."""
+    """Halaman antarmuka utama Benggala OS Cockpit (Mendukung mode web standar & hybrid Android embed)."""
     if 'csrf_token' not in session:
         session['csrf_token'] = secrets.token_hex(32)
     base_path = request.script_root.rstrip('/') or os.getenv('BASE_PATH', '').rstrip('/')
-    return render_template('index.html', csrf_token=session['csrf_token'], base_path=base_path)
+    is_embed = request.args.get('embed', '') == '1'
+    initial_panel = (request.args.get('panel') or '').strip()
+    return render_template(
+        'index.html',
+        csrf_token=session['csrf_token'],
+        base_path=base_path,
+        is_embed=is_embed,
+        initial_panel=initial_panel
+    )
 
 @app.route('/item-detail')
 def item_detail():

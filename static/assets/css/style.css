@@ -4061,3 +4061,57 @@ body.youlo-os {
     background: rgba(6, 15, 28, 0.88) !important;
   }
 }
+/* ==========================================================================
+   === TASK AND_01: ANDROID EMBED MODE (HYBRID WEBVIEW) ===
+   ========================================================================== */
+body.android-embed-mode {
+  background-color: var(--bg-deep, #020617) !important;
+  overflow-y: auto !important;
+}
+
+body.android-embed-mode .camera-container,
+body.android-embed-mode .camera-stage,
+body.android-embed-mode #webcam,
+body.android-embed-mode #overlay,
+body.android-embed-mode .viewport-stars,
+body.android-embed-mode .hud-reticle-overlay,
+body.android-embed-mode .hud-radar,
+body.android-embed-mode .hud-telemetry,
+body.android-embed-mode .hud-zoom-control,
+body.android-embed-mode .hud-top-actions,
+body.android-embed-mode .ar-callout-layer,
+body.android-embed-mode #cameraPlaceholder,
+body.android-embed-mode #cameraError {
+  display: none !important;
+}
+
+body.android-embed-mode .cockpit-shell,
+body.android-embed-mode .cockpit-viewport {
+  background: transparent !important;
+}
+
+body.android-embed-mode .cockpit-panel {
+  position: fixed !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  transform: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  background: #060f1c !important;
+  z-index: 100 !important;
+}
+
+body.android-embed-mode .cockpit-panel .panel-body {
+  height: calc(100dvh - 120px) !important;
+  max-height: calc(100dvh - 120px) !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
